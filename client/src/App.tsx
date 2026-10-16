@@ -31,12 +31,16 @@ export function App() {
   const [showMomentMarker, setShowMomentMarker] = useState(false);
   const [vibeGenre, setVibeGenre] = useState<string>('All');
 
-  // Check URL search parameters on initial load
+  // Check URL search parameters on initial load & restore remembered username
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('room');
+    const nameParam = params.get('name') || localStorage.getItem('syncscreen_username');
     if (code) {
       setRoomCode(code.toUpperCase());
+    }
+    if (nameParam && code) {
+      setUserName(nameParam);
     }
   }, []);
 
@@ -85,6 +89,7 @@ export function App() {
       }
       setUserName(name);
       setRoomCode(data.roomCode);
+      try { localStorage.setItem('syncscreen_username', name); } catch {}
       window.history.pushState({}, '', `?room=${data.roomCode}`);
     } catch (err) {
       alert('Network error connecting to server');
@@ -95,6 +100,7 @@ export function App() {
   const handleJoinRoom = (code: string, name: string) => {
     setUserName(name);
     setRoomCode(code);
+    try { localStorage.setItem('syncscreen_username', name); } catch {}
     window.history.pushState({}, '', `?room=${code}`);
   };
 
