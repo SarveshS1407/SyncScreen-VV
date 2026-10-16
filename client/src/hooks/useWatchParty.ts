@@ -21,6 +21,7 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
   const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'reconnecting'>('connecting');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [floatingReactions, setFloatingReactions] = useState<ReactionEvent[]>([]);
 
   const participantIdRef = useRef<string>(initialParticipantId || localStorage.getItem(`wp_user_${roomCode}`) || '');
@@ -136,6 +137,11 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
       setRoom(prev => prev ? { ...prev, pulse } : null);
     };
 
+    const onChatError = (data: { message: string }) => {
+      setChatError(data.message);
+      setTimeout(() => setChatError(null), 3500);
+    };
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('room_joined', onRoomJoined);
@@ -145,6 +151,7 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
     socket.on('participant_reconnected', onParticipantJoined);
     socket.on('participant_left', onParticipantLeft);
     socket.on('chat_message', onChatMessage);
+    socket.on('chat_error', onChatError);
     socket.on('reaction_event', onReactionEvent);
     socket.on('queue_updated', onQueueUpdated);
     socket.on('poll_updated', onPollUpdated);
@@ -169,6 +176,7 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
       socket.off('participant_reconnected', onParticipantJoined);
       socket.off('participant_left', onParticipantLeft);
       socket.off('chat_message', onChatMessage);
+      socket.off('chat_error', onChatError);
       socket.off('reaction_event', onReactionEvent);
       socket.off('queue_updated', onQueueUpdated);
       socket.off('poll_updated', onPollUpdated);
@@ -370,8 +378,33 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
     setRoom(null);
     setCurrentParticipant(null);
     setErrorMessage(null);
+    setChatError(null);
     setConnectionStatus('disconnected');
     socketService.disconnect();
+  }, [room, currentParticipant]);
+
+  const startBlindPick = useCallback((title: string) => {
+    const socket = socketService.getSocket();
+    if (!socket || !currentParticipant || !room) return;
+    socket.emit('start_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, title });
+  }, [room, currentParticipant]);
+
+  const nominateBlindPick = useCallback((title: string, url: string) => {
+    const socket = socketService.getSocket();
+    if (!socket || !currentParticipant || !room) return;
+    socket.emit('nominate_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, title, url });
+  }, [room, currentParticipant]);
+
+  const advanceBlindPick = useCallback((phase: 'voting' | 'revealed') => {
+    const socket = socketService.getSocket();
+    if (!socket || !currentParticipant || !room) return;
+    socket.emit('advance_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, phase });
+  }, [room, currentParticipant]);
+
+  const voteBlindPick = useCallback((nominationId: string) => {
+    const socket = socketService.getSocket();
+    if (!socket || !currentParticipant || !room) return;
+    socket.emit('vote_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, nominationId });
   }, [room, currentParticipant]);
 
   return {
@@ -380,6 +413,7 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
     isHost: currentParticipant?.isHost ?? false,
     connectionStatus,
     errorMessage,
+    chatError,
     floatingReactions,
     sendPlaybackCommand,
     sendChatMessage,
@@ -396,5 +430,9 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
     transferHost,
     updatePermissions,
     leaveRoom,
+    startBlindPick,
+    nominateBlindPick,
+    advanceBlindPick,
+    voteBlindPick,
   };
 }

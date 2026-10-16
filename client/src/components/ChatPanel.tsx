@@ -7,6 +7,7 @@ interface ChatPanelProps {
   currentUserId: string;
   onSendMessage: (text: string) => void;
   onSendReaction: (emoji: string) => void;
+  chatError?: string | null;
 }
 
 const QUICK_EMOJIS = ['🔥', '❤️', '😂', '🍿', '😱', '👏', '🎉', '🤯', '💀', '💯'];
@@ -16,6 +17,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   currentUserId,
   onSendMessage,
   onSendReaction,
+  chatError,
 }) => {
   const [text, setText] = useState('');
   const [recentEmojiBurst, setRecentEmojiBurst] = useState<string | null>(null);
@@ -113,6 +115,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Chat Rate Limit / Submission Warning */}
+      {chatError && (
+        <div className="px-3.5 py-1.5 bg-rose-500/15 border-t border-rose-500/30 text-rose-400 text-xs flex items-center gap-1.5 font-medium animate-in fade-in">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse flex-shrink-0" />
+          <span>{chatError}</span>
+        </div>
+      )}
 
       {/* Emoji Reactions Quick Bar */}
       <div className="px-3 py-2 bg-cinematic-950/70 border-t border-slate-800/80 flex items-center justify-between gap-1 overflow-x-auto">

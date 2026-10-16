@@ -28,6 +28,7 @@ export function App() {
   const [showBlindPick, setShowBlindPick] = useState(false);
   const [showHealth, setShowHealth] = useState(false);
   const [showMomentMarker, setShowMomentMarker] = useState(false);
+  const [vibeGenre, setVibeGenre] = useState<string>('All');
 
   // Check URL search parameters on initial load
   useEffect(() => {
@@ -45,6 +46,7 @@ export function App() {
     isHost,
     connectionStatus,
     errorMessage,
+    chatError,
     floatingReactions,
     sendPlaybackCommand,
     sendChatMessage,
@@ -61,6 +63,10 @@ export function App() {
     transferHost,
     updatePermissions,
     leaveRoom,
+    startBlindPick,
+    nominateBlindPick,
+    advanceBlindPick,
+    voteBlindPick,
   } = useWatchParty(roomCode, userName);
 
   // Handle Create Room
@@ -268,6 +274,7 @@ export function App() {
                 currentUserId={currentParticipant.id}
                 onSendMessage={sendChatMessage}
                 onSendReaction={sendReaction}
+                chatError={chatError}
               />
             )}
 
@@ -299,6 +306,7 @@ export function App() {
       <MovieDiscoveryModal
         isOpen={showDiscovery}
         onClose={() => setShowDiscovery(false)}
+        initialGenre={vibeGenre}
         onPlayNow={(movie) => {
           sendPlaybackCommand('change_media', 0, {
             mediaUrl: movie.url,
@@ -331,6 +339,8 @@ export function App() {
         currentUserId={currentParticipant.id}
         onSelectVibe={setVibe}
         onFilterCatalogByVibe={(vibe) => {
+          const recGenre = room.vibe.recommendedGenres[0] || 'All';
+          setVibeGenre(recGenre);
           setShowVibe(false);
           setShowDiscovery(true);
         }}
@@ -342,22 +352,10 @@ export function App() {
         blindPick={room.blindPick}
         isHost={isHost}
         currentUserId={currentParticipant.id}
-        onStartBlindPick={(title) => {
-          const socket = (window as any)._socket;
-          if (socket) socket.emit('start_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, title });
-        }}
-        onNominate={(title, url) => {
-          const socket = (window as any)._socket;
-          if (socket) socket.emit('nominate_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, title, url });
-        }}
-        onAdvancePhase={(phase) => {
-          const socket = (window as any)._socket;
-          if (socket) socket.emit('advance_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, phase });
-        }}
-        onVote={(nominationId) => {
-          const socket = (window as any)._socket;
-          if (socket) socket.emit('vote_blind_pick', { roomCode: room.code, participantId: currentParticipant.id, nominationId });
-        }}
+        onStartBlindPick={startBlindPick}
+        onNominate={nominateBlindPick}
+        onAdvancePhase={advanceBlindPick}
+        onVote={voteBlindPick}
         onPlayWinner={(movie) => {
           sendPlaybackCommand('change_media', 0, {
             mediaUrl: movie.url,

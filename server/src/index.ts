@@ -252,7 +252,10 @@ io.on('connection', (socket: Socket) => {
     }
 
     const res = roomManager.addChatMessage(data.roomCode, data.senderId, parsed.data.text);
-    if (res.success && res.message) {
+    if (!res.success) {
+      return socket.emit('chat_error', { message: res.error || 'Failed to send message' });
+    }
+    if (res.message) {
       io.in(data.roomCode.toUpperCase()).emit('chat_message', res.message);
       const room = roomManager.getRoom(data.roomCode);
       if (room) io.in(data.roomCode.toUpperCase()).emit('pulse_updated', room.pulse);

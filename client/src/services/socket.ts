@@ -23,6 +23,8 @@ class SocketService {
       reconnectionDelayMax: 5000,
     });
 
+    (window as any)._socket = this.socket;
+
     this.socket.on('connect', () => {
       this.startClockSync();
     });

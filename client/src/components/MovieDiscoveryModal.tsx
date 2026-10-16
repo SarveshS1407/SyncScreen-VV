@@ -7,6 +7,7 @@ interface MovieDiscoveryModalProps {
   onClose: () => void;
   onPlayNow: (movie: { title: string; url: string; type: MediaType; durationSeconds: number }) => void;
   onAddToQueue: (movie: { title: string; url: string; type: MediaType; durationSeconds: number; thumbnailUrl?: string }) => void;
+  initialGenre?: string;
 }
 
 const GENRES = ['All', 'Action', 'Sci-Fi', 'Animation', 'Horror', 'Documentary', 'Adventure', 'Comedy'];
@@ -23,14 +24,21 @@ export const MovieDiscoveryModal: React.FC<MovieDiscoveryModalProps> = ({
   onClose,
   onPlayNow,
   onAddToQueue,
+  initialGenre,
 }) => {
   const [activeTab, setActiveTab] = useState<'catalog' | 'custom'>('catalog');
   const [movies, setMovies] = useState<MovieItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGenre, setSelectedGenre] = useState('All');
+  const [selectedGenre, setSelectedGenre] = useState(initialGenre || 'All');
   const [sortBy, setSortBy] = useState<'rating' | 'year' | 'title'>('rating');
   const [isLoading, setIsLoading] = useState(false);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (initialGenre) {
+      setSelectedGenre(initialGenre);
+    }
+  }, [initialGenre]);
 
   // Custom URL inputs
   const [customTitle, setCustomTitle] = useState('');

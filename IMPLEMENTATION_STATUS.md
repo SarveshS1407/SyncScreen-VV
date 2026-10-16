@@ -53,41 +53,54 @@
 | **9.2** | Accessibility (keyboard navigation, focus indicators, contrast) | COMPLETE AND VERIFIED | Semantic inputs, accessible labels, focus outlines |
 | **10.1**| Unit tests (drift, permissions, versioning, state calculations) | COMPLETE AND VERIFIED | 8/8 tests passed in `playback-drift.test.ts` |
 | **10.2**| Integration tests (socket communication, room lifecycle) | COMPLETE AND VERIFIED | 14/14 tests passed in `room-lifecycle.test.ts` |
-| **10.3**| Multi-session cross-client verification tests | COMPLETE AND VERIFIED | 7/7 tests passed in `multi-client-sessions.test.ts` (Total: 29/29 tests) |
-| **10.4**| Load simulation (10+ concurrent users, <250ms p95 propagation) | COMPLETE AND VERIFIED | **12 users tested, p95: 6.47 ms** (Target: $\le 250$ ms) |
+| **10.3**| Multi-session cross-client verification tests | COMPLETE AND VERIFIED | 7/7 tests passed in `multi-client-sessions.test.ts` |
+| **10.4**| Feature integration tests (queue, rate-limit, blind pick, vibe) | COMPLETE AND VERIFIED | 10/10 tests passed in `phase3-features.test.ts` (Total: 39/39 tests) |
+| **10.5**| Load simulation (10+ concurrent users, <250ms p95 propagation) | COMPLETE AND VERIFIED | **12 users tested, p95: 6.13 ms** (Target: $\le 250$ ms) |
 | **11.1**| Production build without errors or warnings | COMPLETE AND VERIFIED | `npm run build` succeeds cleanly across all workspaces (Vite + TypeScript) |
 | **11.2**| Deployment documentation (DEPLOYMENT.md, .env.example, README.md) | COMPLETE AND VERIFIED | Comprehensive setup, Dockerfile, cloud deployment guides |
 | **11.3**| Performance benchmark report (PERFORMANCE_REPORT.md) | COMPLETE AND VERIFIED | Detailed percentiles and test procedures documented |
 
 ---
 
-## Phase 2 Verification Evidence
+## Phase 3 Verification Evidence
 
-1. **Room Management & Scoping**:
-   - Independent room creation with human-readable room codes (`COSMIC-CINEMA-703`).
-   - Casing normalization (`.toUpperCase()`) and whitespace trimming supported on room creation, joining, and socket scoping.
-   - Invitation URL support: joining via `?room=CODE` or pasting invitation URLs extracts room code cleanly.
-   - Explicit `leave_room` socket flow cleans up socket memberships, notifies participants, and triggers host re-election when the host departs.
-   - Descriptive rejection of invalid room codes (`Room "..." not found. Please check your code`).
+1. **Movie Discovery**:
+   - Sub-token fuzzy search matching titles, genres, and descriptions (`/api/movies?q=...&genre=...&sort=...`).
+   - Rich movie cards with ratings, poster artwork, genres, and release years.
+   - Explicit `isPlayable` distinction: playable movies display direct "Play Now" and "Queue" buttons; metadata-only movies display clear "Trailer Preview" notices.
+   - Built-in Custom Stream URL tab with direct presets (Big Buck Bunny, Tears of Steel, Sintel, Night of the Living Dead).
 
-2. **Real-Time Communication & Scoping**:
-   - Case-insensitive socket room broadcasting (`socket.join(room.code.toUpperCase())`, `io.in(roomCode.toUpperCase())`).
-   - Disconnection detection, reconnect recovery without duplicate participant entries (`isReconnect: true`), and monotonic revision tracking.
+2. **Shared Queue**:
+   - Queue addition, removal, reordering, and direct playback.
+   - Duplicate URL prevention: attempts to re-add an already queued URL return an explicit notification (`This video is already in the queue.`).
+   - Permission enforcement: guests are restricted from modifying the queue when `manageQueue` is set to `host_only`.
 
-3. **Synchronized Playback**:
-   - Authoritative server state with monotonic revisions.
-   - Dynamic elapsed time offset calculation for late joiners (`getAuthoritativePosition`).
-   - Multi-tier client drift correction engine (gentle $\pm 6\%$ rate adjustment in Zone 2, debounced hard seek in Zone 3).
-   - Anti-looping cooldown (1500ms) on hard seeks.
-   - Autoplay policy unblock overlay with user sync gesture.
+3. **Chat and Reactions**:
+   - Multi-user real-time chat with participant names, avatar colors, and timestamps.
+   - HTML and script tag sanitization stripping unsafe tags (`<script>`, `<b>`, etc.).
+   - Rate limiting: participant submissions are limited to a maximum of 5 messages per 2000ms window, returning an in-app rate limit warning banner upon excessive submissions.
+   - Emoji reaction bar triggering floating animated canvas reactions and boosting room pulse energy.
 
-4. **Security & Permission Enforcement**:
-   - Server-enforced permissions for playback control, queue manipulation, and poll creation.
-   - Automatic host failover upon departure and voluntary host transfer with server validation.
-   - Chat input sanitization stripping HTML and script tags.
+4. **Group Polls**:
+   - Poll creation with up to 5 custom options.
+   - Live vote progress bars and percentage calculation.
+   - Safe voting policy: voting for a new option cleanly revokes the previous vote.
+   - Poll closure: locks results and rejects subsequent votes.
 
-5. **Test Results**:
-   - Vitest test suite: **29/29 tests passing** (`npm test`).
-   - Performance benchmark: **12 concurrent clients, p95 = 6.47ms, post-correction drift = 30ms** (`npm run test:perf`).
+5. **Host Controls & Permissions**:
+   - Voluntary host transfer with confirmation dialogue.
+   - Granular room permissions (Playback, Queue, Polls: `everyone` vs `host_only`) enforced on server.
+   - Automatic host failover electing the next active participant on host disconnect or departure.
+
+6. **Creative Features**:
+   - **Watch Party Pulse**: Real-time energy score (0-100) and active watchers meter.
+   - **Blind Pick Showdown**: 3-phase secret nomination, blind voting on mystery reels, and synchronized reveal with direct winning playback.
+   - **Vibe Matching & Smart Recommendations**: Real-time mood consensus recommending matching genres with one-click catalog pre-filtering.
+   - **Synchronized Moment Markers**: Interactive scrubber pins and horizontal bookmark strip for jumping to key scenes.
+   - **Watch Party Health Monitor**: Live diagnostics modal displaying RTT, NTP offset, drift, and uptime.
+
+7. **Test Results**:
+   - Vitest test suite: **39/39 tests passing** (`npm test`).
+   - Performance benchmark: **12 concurrent clients, p95 = 6.13ms, drift = 30ms** (`npm run test:perf`).
    - Typecheck: **0 errors** across shared, server, client (`npm run typecheck`).
-   - Production build: **Clean 1.58s build** (`npm run build`).
+   - Production build: **Clean 1.64s build** (`npm run build`).

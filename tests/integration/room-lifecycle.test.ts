@@ -272,20 +272,20 @@ describe('Room Lifecycle & Real-Time Sync Service', () => {
 
     // Add new media item to queue
     const addRes = roomManager.addToQueue(room.code, alice.id, {
-      title: 'Tears of Steel',
-      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+      title: 'Cosmic Voyage',
+      url: 'https://example.com/cosmic_voyage.mp4',
       type: 'mp4',
       durationSeconds: 734,
     });
 
     expect(addRes.success).toBe(true);
-    const addedItem = addRes.queue?.find(q => q.title === 'Tears of Steel');
+    const addedItem = addRes.queue?.find(q => q.title === 'Cosmic Voyage');
     expect(addedItem).toBeDefined();
 
     // Play the queued item
     const playQueueRes = roomManager.playQueueItem(room.code, alice.id, addedItem!.id);
     expect(playQueueRes.success).toBe(true);
-    expect(room.playback.mediaTitle).toBe('Tears of Steel');
+    expect(room.playback.mediaTitle).toBe('Cosmic Voyage');
     expect(room.playback.positionSeconds).toBe(0);
     expect(room.playback.status).toBe('playing');
   });

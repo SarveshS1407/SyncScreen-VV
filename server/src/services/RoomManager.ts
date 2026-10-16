@@ -44,6 +44,7 @@ export class RoomManager {
   private socketToRoom: Map<string, { roomCode: string; participantId: string }> = new Map();
   private emptyRoomTimers: Map<string, NodeJS.Timeout> = new Map();
   private healthStats: Map<string, { corrections: number; reconnects: number; rtts: number[]; maxDrift: number }> = new Map();
+  private userMessageTimestamps: Map<string, number[]> = new Map();
   private serverStartTime: number = Date.now();
 
   constructor() {
@@ -544,6 +545,12 @@ export class RoomManager {
       return { success: false, error: 'Queue management is restricted to the host.' };
     }
 
+    // Prevent duplicate URL additions in queue
+    const alreadyQueued = room.queue.some(q => q.url === item.url);
+    if (alreadyQueued) {
+      return { success: false, error: 'This video is already in the queue.' };
+    }
+
     const newItem: QueueItem = {
       id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       title: item.title,
@@ -655,6 +662,16 @@ export class RoomManager {
 
     const participant = room.participants.find(p => p.id === senderId);
     if (!participant) return { success: false, error: 'Participant not in room' };
+
+    // Rate limiting: Maximum 5 messages per 2000ms window
+    const now = Date.now();
+    const timestamps = this.userMessageTimestamps.get(senderId) || [];
+    const recent = timestamps.filter(t => now - t < 2000);
+    if (recent.length >= 5) {
+      return { success: false, error: 'You are sending messages too quickly. Please wait a moment.' };
+    }
+    recent.push(now);
+    this.userMessageTimestamps.set(senderId, recent);
 
     // Sanitize string (strip script or html tags)
     const sanitized = text.replace(/<[^>]*>?/gm, '').trim();
