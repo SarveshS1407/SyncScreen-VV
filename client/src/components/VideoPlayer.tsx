@@ -266,6 +266,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onLoadedMetadata={handleLoadedMetadata}
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => setIsBuffering(false)}
+        onEnded={() => {
+          if (canControl) onCommand('pause', duration);
+        }}
         className="w-full h-full object-contain cursor-pointer"
         onClick={togglePlay}
       />
