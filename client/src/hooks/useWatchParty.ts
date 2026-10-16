@@ -27,7 +27,13 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
 
   // Connect socket and join room
   useEffect(() => {
-    if (!roomCode || !userName) return;
+    if (!roomCode || !userName) {
+      setRoom(null);
+      setCurrentParticipant(null);
+      setErrorMessage(null);
+      setConnectionStatus('disconnected');
+      return;
+    }
 
     setConnectionStatus('connecting');
     const socket = socketService.connect();
@@ -353,6 +359,21 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
     });
   }, [room, currentParticipant]);
 
+  const leaveRoom = useCallback(() => {
+    const socket = socketService.getSocket();
+    if (socket && room && currentParticipant) {
+      socket.emit('leave_room', {
+        roomCode: room.code,
+        participantId: currentParticipant.id,
+      });
+    }
+    setRoom(null);
+    setCurrentParticipant(null);
+    setErrorMessage(null);
+    setConnectionStatus('disconnected');
+    socketService.disconnect();
+  }, [room, currentParticipant]);
+
   return {
     room,
     currentParticipant,
@@ -374,5 +395,6 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
     addMomentMarker,
     transferHost,
     updatePermissions,
+    leaveRoom,
   };
 }

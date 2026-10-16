@@ -7,6 +7,28 @@ interface LandingPageProps {
   onCreate: (userName: string, roomName?: string) => void;
 }
 
+function parseRoomCodeInput(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.includes('room=')) {
+    try {
+      const match = trimmed.match(/[?&]room=([^&#]+)/i);
+      if (match && match[1]) {
+        return decodeURIComponent(match[1]).trim().toUpperCase();
+      }
+    } catch {
+      // fallback
+    }
+  }
+  if (trimmed.includes('/') || trimmed.includes(':')) {
+    const segments = trimmed.split('/');
+    const last = segments[segments.length - 1];
+    if (last) {
+      return last.split('?')[0].trim().toUpperCase();
+    }
+  }
+  return trimmed.toUpperCase();
+}
+
 export const LandingPage: React.FC<LandingPageProps> = ({
   initialRoomCode = '',
   onJoin,
@@ -21,7 +43,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   useEffect(() => {
     if (initialRoomCode) {
-      setRoomCode(initialRoomCode);
+      setRoomCode(parseRoomCodeInput(initialRoomCode));
       setMode('join');
     }
   }, [initialRoomCode]);
@@ -36,12 +58,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
 
     if (mode === 'join') {
-      if (!roomCode.trim()) {
-        setError('Please enter a valid room code.');
+      const cleanedCode = parseRoomCodeInput(roomCode);
+      if (!cleanedCode) {
+        setError('Please enter a valid room code or invitation URL.');
         return;
       }
       setIsLoading(true);
-      onJoin(roomCode.trim().toUpperCase(), userName.trim());
+      onJoin(cleanedCode, userName.trim());
     } else {
       setIsLoading(true);
       onCreate(userName.trim(), roomName.trim() || undefined);
@@ -229,9 +252,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     type="text"
                     value={roomCode}
                     onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text');
+                      const extracted = parseRoomCodeInput(pasted);
+                      if (extracted) {
+                        e.preventDefault();
+                        setRoomCode(extracted);
+                      }
+                    }}
                     placeholder="e.g. COSMIC-CINEMA-703"
                     required
-                    maxLength={30}
+                    maxLength={50}
                     className="w-full px-4 py-3 bg-cinematic-800/90 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary font-mono tracking-wider transition uppercase"
                   />
                   <p className="text-[11px] text-slate-500 mt-1">

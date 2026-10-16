@@ -189,7 +189,7 @@ io.on('connection', (socket: Socket) => {
     }
 
     const { room, participant, isReconnect } = res;
-    socket.join(room.code);
+    socket.join(room.code.toUpperCase());
 
     // Send full authoritative room snapshot to joining client
     socket.emit('room_joined', {
@@ -201,7 +201,7 @@ io.on('connection', (socket: Socket) => {
     });
 
     // Notify other room participants
-    socket.to(room.code).emit(isReconnect ? 'participant_reconnected' : 'participant_joined', {
+    socket.to(room.code.toUpperCase()).emit(isReconnect ? 'participant_reconnected' : 'participant_joined', {
       participant,
       participants: room.participants,
       pulse: room.pulse,
@@ -438,7 +438,22 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // 11. Disconnect
+  // 11. Leave Room (explicit user leave)
+  socket.on('leave_room', (data: { roomCode?: string; participantId?: string }) => {
+    const result = roomManager.handleDisconnect(socket.id);
+    if (result) {
+      const { roomCode, room, participant } = result;
+      socket.leave(roomCode.toUpperCase());
+      io.in(roomCode.toUpperCase()).emit('participant_left', {
+        participantId: participant?.id,
+        participants: room.participants,
+        hostId: room.hostId,
+        pulse: room.pulse,
+      });
+    }
+  });
+
+  // 12. Disconnect
   socket.on('disconnect', () => {
     const result = roomManager.handleDisconnect(socket.id);
     if (result) {

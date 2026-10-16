@@ -52,8 +52,42 @@
 | **9.1** | Dark cinematic UI/UX, responsive mobile/desktop layout | COMPLETE AND VERIFIED | Glassmorphic dark styling with Tailwind CSS |
 | **9.2** | Accessibility (keyboard navigation, focus indicators, contrast) | COMPLETE AND VERIFIED | Semantic inputs, accessible labels, focus outlines |
 | **10.1**| Unit tests (drift, permissions, versioning, state calculations) | COMPLETE AND VERIFIED | 8/8 tests passed in `playback-drift.test.ts` |
-| **10.2**| Integration tests (socket communication, room lifecycle) | COMPLETE AND VERIFIED | 8/8 tests passed in `room-lifecycle.test.ts` |
-| **10.3**| Load simulation (10+ concurrent users, <250ms p95 propagation) | COMPLETE AND VERIFIED | **12 users tested, p95: 6.04 ms** (Target: $\le 250$ ms) |
-| **11.1**| Production build without errors or warnings | COMPLETE AND VERIFIED | `npm run build` succeeds cleanly across all workspaces |
+| **10.2**| Integration tests (socket communication, room lifecycle) | COMPLETE AND VERIFIED | 14/14 tests passed in `room-lifecycle.test.ts` |
+| **10.3**| Multi-session cross-client verification tests | COMPLETE AND VERIFIED | 7/7 tests passed in `multi-client-sessions.test.ts` (Total: 29/29 tests) |
+| **10.4**| Load simulation (10+ concurrent users, <250ms p95 propagation) | COMPLETE AND VERIFIED | **12 users tested, p95: 6.47 ms** (Target: $\le 250$ ms) |
+| **11.1**| Production build without errors or warnings | COMPLETE AND VERIFIED | `npm run build` succeeds cleanly across all workspaces (Vite + TypeScript) |
 | **11.2**| Deployment documentation (DEPLOYMENT.md, .env.example, README.md) | COMPLETE AND VERIFIED | Comprehensive setup, Dockerfile, cloud deployment guides |
 | **11.3**| Performance benchmark report (PERFORMANCE_REPORT.md) | COMPLETE AND VERIFIED | Detailed percentiles and test procedures documented |
+
+---
+
+## Phase 2 Verification Evidence
+
+1. **Room Management & Scoping**:
+   - Independent room creation with human-readable room codes (`COSMIC-CINEMA-703`).
+   - Casing normalization (`.toUpperCase()`) and whitespace trimming supported on room creation, joining, and socket scoping.
+   - Invitation URL support: joining via `?room=CODE` or pasting invitation URLs extracts room code cleanly.
+   - Explicit `leave_room` socket flow cleans up socket memberships, notifies participants, and triggers host re-election when the host departs.
+   - Descriptive rejection of invalid room codes (`Room "..." not found. Please check your code`).
+
+2. **Real-Time Communication & Scoping**:
+   - Case-insensitive socket room broadcasting (`socket.join(room.code.toUpperCase())`, `io.in(roomCode.toUpperCase())`).
+   - Disconnection detection, reconnect recovery without duplicate participant entries (`isReconnect: true`), and monotonic revision tracking.
+
+3. **Synchronized Playback**:
+   - Authoritative server state with monotonic revisions.
+   - Dynamic elapsed time offset calculation for late joiners (`getAuthoritativePosition`).
+   - Multi-tier client drift correction engine (gentle $\pm 6\%$ rate adjustment in Zone 2, debounced hard seek in Zone 3).
+   - Anti-looping cooldown (1500ms) on hard seeks.
+   - Autoplay policy unblock overlay with user sync gesture.
+
+4. **Security & Permission Enforcement**:
+   - Server-enforced permissions for playback control, queue manipulation, and poll creation.
+   - Automatic host failover upon departure and voluntary host transfer with server validation.
+   - Chat input sanitization stripping HTML and script tags.
+
+5. **Test Results**:
+   - Vitest test suite: **29/29 tests passing** (`npm test`).
+   - Performance benchmark: **12 concurrent clients, p95 = 6.47ms, post-correction drift = 30ms** (`npm run test:perf`).
+   - Typecheck: **0 errors** across shared, server, client (`npm run typecheck`).
+   - Production build: **Clean 1.58s build** (`npm run build`).

@@ -198,4 +198,110 @@ describe('Room Lifecycle & Real-Time Sync Service', () => {
     expect(room.activePoll?.options[0].votes).not.toContain(bobJoin.participant.id);
     expect(room.activePoll?.options[1].votes).toContain(bobJoin.participant.id);
   });
+
+  it('normalizes room code casing and allows join with lowercase codes', () => {
+    const { room } = roomManager.createRoom({ userName: 'HostAlice' });
+    const lowerCode = room.code.toLowerCase();
+
+    const joinRes = roomManager.joinRoom({
+      roomCode: lowerCode,
+      userName: 'GuestBob',
+      socketId: 'sock_bob_lower',
+    });
+
+    expect('error' in joinRes).toBe(false);
+    if (!('error' in joinRes)) {
+      expect(joinRes.room.code).toBe(room.code);
+      expect(joinRes.participant.name).toBe('GuestBob');
+    }
+  });
+
+  it('gracefully rejects invalid room codes with descriptive error', () => {
+    const joinRes = roomManager.joinRoom({
+      roomCode: 'NON-EXISTENT-999',
+      userName: 'LostUser',
+      socketId: 'sock_lost',
+    });
+
+    expect('error' in joinRes).toBe(true);
+    if ('error' in joinRes) {
+      expect(joinRes.error).toContain('not found');
+      expect(joinRes.error).toContain('Please check your code');
+    }
+  });
+
+  it('supports explicit host transfer and rejects unauthorized transfer requests', () => {
+    const { room, participant: alice } = roomManager.createRoom({ userName: 'Alice' });
+    const bobJoin = roomManager.joinRoom({ roomCode: room.code, userName: 'Bob', socketId: 'b' });
+    if ('error' in bobJoin) throw new Error('Join failed');
+
+    // Bob (not host) attempts to transfer host to himself
+    const unauthorized = roomManager.transferHost(room.code, bobJoin.participant.id, bobJoin.participant.id);
+    expect(unauthorized.success).toBe(false);
+    expect(unauthorized.error).toContain('Only the current host can transfer host privileges');
+
+    // Alice (host) transfers host to Bob
+    const authorized = roomManager.transferHost(room.code, alice.id, bobJoin.participant.id);
+    expect(authorized.success).toBe(true);
+    expect(room.hostId).toBe(bobJoin.participant.id);
+    expect(room.participants.find(p => p.id === bobJoin.participant.id)?.isHost).toBe(true);
+    expect(room.participants.find(p => p.id === alice.id)?.isHost).toBe(false);
+  });
+
+  it('accurately calculates elapsed authoritative playback position for late joins', () => {
+    const { room, participant: alice } = roomManager.createRoom({ userName: 'Alice' });
+
+    // Alice starts playback at 10.0s
+    roomManager.handlePlaybackCommand(room.code, alice.id, {
+      action: 'play',
+      positionSeconds: 10.0,
+      expectedRevision: 1,
+    });
+
+    // Artificially simulate 3 seconds of elapsed playback on the server
+    room.playback.updatedAt = Date.now() - 3000;
+
+    const computedPos = roomManager.getAuthoritativePosition(room.playback);
+    // Position should be approximately 10 + 3 = 13.0s (within 0.1s tolerance)
+    expect(computedPos).toBeGreaterThanOrEqual(12.9);
+    expect(computedPos).toBeLessThanOrEqual(13.2);
+  });
+
+  it('manages shared queue additions, removals, reordering and media playback', () => {
+    const { room, participant: alice } = roomManager.createRoom({ userName: 'Alice' });
+
+    // Add new media item to queue
+    const addRes = roomManager.addToQueue(room.code, alice.id, {
+      title: 'Tears of Steel',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+      type: 'mp4',
+      durationSeconds: 734,
+    });
+
+    expect(addRes.success).toBe(true);
+    const addedItem = addRes.queue?.find(q => q.title === 'Tears of Steel');
+    expect(addedItem).toBeDefined();
+
+    // Play the queued item
+    const playQueueRes = roomManager.playQueueItem(room.code, alice.id, addedItem!.id);
+    expect(playQueueRes.success).toBe(true);
+    expect(room.playback.mediaTitle).toBe('Tears of Steel');
+    expect(room.playback.positionSeconds).toBe(0);
+    expect(room.playback.status).toBe('playing');
+  });
+
+  it('sanitizes chat messages to prevent XSS script injection', () => {
+    const { room, participant: alice } = roomManager.createRoom({ userName: 'Alice' });
+
+    const chatRes = roomManager.addChatMessage(
+      room.code,
+      alice.id,
+      'Hello <script>alert("hack")</script><b>World!</b>'
+    );
+
+    expect(chatRes.success).toBe(true);
+    expect(chatRes.message?.text).toBe('Hello alert("hack")World!');
+    expect(chatRes.message?.text).not.toContain('<script>');
+    expect(chatRes.message?.text).not.toContain('<b>');
+  });
 });

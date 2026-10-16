@@ -60,6 +60,7 @@ export function App() {
     addMomentMarker,
     transferHost,
     updatePermissions,
+    leaveRoom,
   } = useWatchParty(roomCode, userName);
 
   // Handle Create Room
@@ -93,6 +94,7 @@ export function App() {
   // Handle Leave Room
   const handleLeaveRoom = () => {
     if (window.confirm('Are you sure you want to leave this watch party?')) {
+      leaveRoom();
       localStorage.removeItem(`wp_user_${roomCode}`);
       setRoomCode('');
       setUserName('');
@@ -109,7 +111,11 @@ export function App() {
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{errorMessage}</span>
             <button
-              onClick={() => { setRoomCode(''); setUserName(''); }}
+              onClick={() => {
+                setRoomCode('');
+                setUserName('');
+                window.history.pushState({}, '', window.location.pathname);
+              }}
               className="underline hover:text-rose-200 ml-2 font-semibold"
             >
               Back to Home

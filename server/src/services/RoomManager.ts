@@ -440,7 +440,7 @@ export class RoomManager {
     const current = room.playback;
 
     // Detect stale or out-of-order revision (allow revision within 2 for rapid successive actions, reject outdated)
-    if (command.expectedRevision < current.revision - 3) {
+    if (command.expectedRevision < current.revision - 2) {
       return {
         success: false,
         error: `Stale command rejected. Current revision is ${current.revision}, received expected ${command.expectedRevision}.`,
