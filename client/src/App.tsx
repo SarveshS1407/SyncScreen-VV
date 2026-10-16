@@ -13,6 +13,7 @@ import { BlindPickModal } from './components/CreativeFeatures/BlindPickModal.js'
 import { MomentMarkerModal } from './components/CreativeFeatures/MomentMarkerModal.js';
 import { HealthMonitorModal } from './components/HealthMonitorModal.js';
 import { useWatchParty } from './hooks/useWatchParty.js';
+import { apiUrl } from './services/api.js';
 import { MessageSquare, ListVideo, Users, Bookmark, Film, RefreshCw, AlertTriangle, Play } from 'lucide-react';
 import { MediaType, VibeType } from '@watch-party/shared';
 
@@ -72,7 +73,7 @@ export function App() {
   // Handle Create Room
   const handleCreateRoom = async (name: string, roomTitle?: string) => {
     try {
-      const res = await fetch('/api/rooms', {
+      const res = await fetch(apiUrl('/api/rooms'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName: name, roomName: roomTitle }),

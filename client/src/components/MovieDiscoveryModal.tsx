@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Star, Play, Plus, Link, Check, Film, AlertCircle, Sparkles } from 'lucide-react';
 import { MovieItem, MediaType } from '@watch-party/shared';
+import { apiUrl } from '../services/api.js';
 
 interface MovieDiscoveryModalProps {
   isOpen: boolean;
@@ -54,7 +55,7 @@ export const MovieDiscoveryModal: React.FC<MovieDiscoveryModalProps> = ({
     if (selectedGenre !== 'All') params.set('genre', selectedGenre);
     params.set('sort', sortBy);
 
-    fetch(`/api/movies?${params.toString()}`)
+    fetch(apiUrl(`/api/movies?${params.toString()}`))
       .then(res => res.json())
       .then(data => {
         setMovies(data.movies || []);

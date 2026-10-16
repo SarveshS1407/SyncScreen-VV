@@ -11,10 +11,13 @@ class SocketService {
       return this.socket;
     }
 
-    // Connect to server (proxied in Vite or direct in production)
-    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:3001'
-      : window.location.origin;
+    // Connect to server (explicit env var, localhost fallback, or origin in production)
+    const envServerUrl = (import.meta.env.VITE_SERVER_URL as string | undefined)?.replace(/\/+$/, '');
+    const serverUrl = envServerUrl
+      ? envServerUrl
+      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://localhost:3001'
+        : window.location.origin;
 
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],

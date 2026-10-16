@@ -1,3 +1,6 @@
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import http from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
@@ -28,10 +31,22 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+const allowedOrigins = [
+  ...rawClientUrl.split(',').map((u: string) => u.trim()),
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+];
 
 app.use(cors({
-  origin: [CLIENT_URL, 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -470,6 +485,29 @@ io.on('connection', (socket: Socket) => {
     }
   });
 });
+
+// ==========================================
+// STATIC ASSETS & SPA ROUTING FALLBACK
+// ==========================================
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/health') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    const indexHtml = path.join(clientDistPath, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      res.sendFile(indexHtml);
+    } else {
+      next();
+    }
+  });
+}
 
 server.listen(PORT, () => {
   console.log(`[WatchParty Server] Running on http://localhost:${PORT}`);

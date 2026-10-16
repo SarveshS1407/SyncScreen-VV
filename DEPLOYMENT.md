@@ -1,145 +1,139 @@
-# Deployment Guide: Watch Party
+# Deployment & Production Runbook: SyncScreen Watch Party
 
-This document outlines the step-by-step procedures for deploying the **Watch Party** application to containerized environments, cloud providers, and unified hosting platforms.
-
----
-
-## 1. Architecture Overview
-
-- **Frontend:** Single Page Application (SPA) built with React 18, Vite, and Tailwind CSS.
-- **Backend:** Node.js, Express, Socket.IO server.
-- **Protocol Requirements:** Full WebSocket support (`Upgrade: websocket` headers) with sticky sessions if load-balanced across multiple instances.
-- **Database / Persistence:** In-memory high-throughput state manager with optional persistent storage (SQLite or PostgreSQL via Prisma).
-- **Static Assets:** Can be served directly via Express in a unified deployment or hosted on a CDN (Vercel, Netlify, Cloudflare Pages, Cloud Storage).
+This document outlines the step-by-step procedures for deploying and running the **SyncScreen** application across containerized environments, cloud providers, and unified or decoupled hosting platforms.
 
 ---
 
-## 2. Environment Variables
+## 1. Architecture & Hosting Strategy
 
-| Variable | Required | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `PORT` | No | `3001` | The HTTP & WebSocket listener port for the backend server |
-| `CLIENT_URL` | No | `http://localhost:5173` | The allowed frontend origin for CORS policies |
-| `NODE_ENV` | No | `development` | Set to `production` in production deployments |
-| `TMDB_API_KEY`| No | *(empty)* | Optional TMDB API key if external movie discovery is preferred |
+The application consists of:
+- **Frontend SPA:** React 18, TypeScript, Vite, Tailwind CSS (located in `client/`).
+- **Backend API & WebSocket Server:** Node.js, Express, Socket.IO (located in `server/`).
+- **Shared Code:** Types and Zod schemas in `shared/`.
+
+### Deployment Models:
+1. **Unified Single-Service (Recommended for zero-configuration):**
+   The Express server serves the REST API, Socket.IO WebSockets, and the static compiled frontend (`client/dist`) from a single port.
+   - **Supported on:** Render, Railway, Fly.io, DigitalOcean App Platform, AWS ECS, Google Cloud Run, or any Docker/VPS host.
+   - **Advantage:** No CORS complexity, no external proxy required, instant room links.
+
+2. **Decoupled Architecture (Vercel Frontend + Persistent WebSocket Backend):**
+   - **Frontend:** Hosted on Vercel (using [`vercel.json`](file:///vercel.json)).
+   - **Backend:** Hosted on Render, Railway, or Fly.io (where long-lived persistent WebSocket connections are maintained).
+   - **Environment Connection:** Frontend points to the backend via `VITE_SERVER_URL=https://your-backend.onrender.com`.
 
 ---
 
-## 3. Production Build & Run
+## 2. Environment Variables Reference
 
-### Step 1: Build all workspaces
+| Variable | Target | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `PORT` | Server | No | `3001` | Server listener port |
+| `CLIENT_URL` | Server | No | `http://localhost:5173` | Allowed frontend origins for CORS (comma-separated if multiple, e.g. `https://syncscreen.vercel.app`) |
+| `NODE_ENV` | Server | No | `production` | Set to `production` in production environments |
+| `VITE_SERVER_URL` | Client | No | *(empty)* | External backend URL for decoupled frontend hosting on Vercel |
+| `TMDB_API_KEY` | Server | No | *(empty)* | Optional TMDB API key if external film search is desired |
+
+---
+
+## 3. Step-by-Step Deployment Procedures
+
+### Method A: One-Click Render Deployment (Unified)
+
+1. Fork or push the repository to GitHub: `https://github.com/SarveshS1407/SyncScreen-VV.git`.
+2. Log into [Render.com](https://render.com) and click **New + > Blueprint**.
+3. Select your repository. Render automatically reads [`render.yaml`](file:///render.yaml):
+   - **Runtime:** Node
+   - **Build Command:** `npm install && npm run build`
+   - **Start Command:** `npm start`
+   - **Health Check Path:** `/health`
+4. Click **Apply**.
+5. Once deployed, copy your live Render URL (e.g. `https://syncscreen-watch-party.onrender.com`).
+6. Set the `CLIENT_URL` environment variable in Render settings to your assigned URL.
+
+---
+
+### Method B: Decoupled Deployment (Vercel Frontend + Render Backend)
+
+#### Step 1: Deploy Backend on Render / Railway
+1. Deploy the backend as a Node Web Service using the steps in Method A.
+2. Note your backend URL: e.g. `https://syncscreen-api.onrender.com`.
+
+#### Step 2: Deploy Frontend on Vercel
+1. Log into [Vercel](https://vercel.com) and click **Add New > Project**.
+2. Import the `SyncScreen-VV` repository.
+3. Configure project settings:
+   - **Framework Preset:** Vite
+   - **Root Directory:** `./` (or `client`)
+   - **Build Command:** `npm run build -w shared && npm run build -w client`
+   - **Output Directory:** `client/dist`
+4. Add Environment Variable:
+   - `VITE_SERVER_URL` = `https://syncscreen-api.onrender.com`
+5. Click **Deploy**.
+6. In your Render backend settings, update `CLIENT_URL` to include your new Vercel domain (e.g. `https://syncscreen-vv.vercel.app`).
+
+---
+
+### Method C: Docker & Docker Compose (Self-Hosted / VPS)
+
+The repository includes a production-hardened multi-stage [`Dockerfile`](file:///Dockerfile) and [`docker-compose.yml`](file:///docker-compose.yml).
+
+#### Run with Docker Compose:
 ```bash
-npm run build
-```
-This builds:
-1. `@watch-party/shared` -> `shared/dist`
-2. `@watch-party/client` -> `client/dist` (optimized HTML/JS/CSS bundle)
-3. `@watch-party/server` -> `server/dist`
+# Build and run the unified container
+docker compose up --build -d
 
-### Step 2: Start the Production Server
+# Check running status and health check
+docker compose ps
+
+# View container logs
+docker compose logs -f
+```
+
+#### Run with Plain Docker:
 ```bash
-npm start
+docker build -t syncscreen:latest .
+docker run -d -p 3001:3001 -e NODE_ENV=production -e CLIENT_URL=http://your-server-ip:3001 --name syncscreen syncscreen:latest
 ```
-By default, the server serves the API and Socket.IO on port `3001`.
 
 ---
 
-## 4. Docker Deployment
+## 4. Production Smoke Verification
 
-### Dockerfile
-Create a `Dockerfile` at the root:
+Before declaring a deployment live, execute the automated production smoke test:
 
-```dockerfile
-# Multi-stage production build
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-COPY package*.json ./
-COPY shared/package*.json ./shared/
-COPY server/package*.json ./server/
-COPY client/package*.json ./client/
-
-RUN npm install
-
-COPY . .
-RUN npm run build
-
-# Production Runner
-FROM node:20-alpine AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV PORT=3001
-
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/shared/package*.json ./shared/
-COPY --from=builder /app/shared/dist ./shared/dist
-COPY --from=builder /app/server/package*.json ./server/
-COPY --from=builder /app/server/dist ./server/dist
-COPY --from=builder /app/client/dist ./client/dist
-
-RUN npm install --omit=dev
-
-EXPOSE 3001
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:3001/health || exit 1
-
-CMD ["npm", "start"]
-```
-
-### Build & Run Docker Image
 ```bash
-docker build -t watch-party:latest .
-docker run -p 3001:3001 --env-file .env watch-party:latest
+npm run test:smoke
 ```
 
----
-
-## 5. Cloud Platform Recommendations
-
-### A. Render.com / Railway.app (Recommended)
-1. Create a **Web Service** pointing to the repository.
-2. Build command: `npm install && npm run build`
-3. Start command: `npm start`
-4. WebSocket support is automatically provisioned out of the box.
-
-### B. Google Cloud Run
-1. Build container image and push to Google Artifact Registry:
-   ```bash
-   gcloud builds submit --tag gcr.io/[PROJECT_ID]/watch-party:latest
-   ```
-2. Deploy service enabling WebSockets with session affinity:
-   ```bash
-   gcloud run deploy watch-party \
-     --image gcr.io/[PROJECT_ID]/watch-party:latest \
-     --platform managed \
-     --region us-central1 \
-     --allow-unauthenticated \
-     --port 3001 \
-     --session-affinity
-   ```
-
-### C. Decoupled Deployment (Vercel + Node VPS)
-- **Frontend on Vercel:** Deploy `client/` folder. In Vercel Project Settings, set `Root Directory` to `client` and configure rewrite rules to redirect `/socket.io` to your backend URL.
-- **Backend on Render / AWS ECS / DigitalOcean:** Expose port `3001` and set `CLIENT_URL=https://your-frontend.vercel.app`.
+This verifies:
+1. HTTP GET `/health` returns 200 with uptime and room metrics.
+2. HTTP GET `/` serves the compiled Vite SPA bundle (`index.html`).
+3. SPA routing fallback for direct room invitation links (`/?room=CODE`).
+4. HTTP POST `/api/rooms` creates a new room with human-readable code.
+5. Real-time WebSocket connection joins the room and receives the synchronized snapshot.
+6. Playback command broadcasts real-time state across participants.
 
 ---
 
-## 6. Health & Liveness Checks
+## 5. Production Health & Monitoring
 
-A health endpoint is available at:
+The backend exposes a health and diagnostic probe:
 ```http
 GET /health
 ```
-Response:
+Response format:
 ```json
 {
   "status": "ok",
-  "uptime": 124.5,
-  "timestamp": 1729068000000,
+  "uptime": 1254.3,
+  "timestamp": 1729094400000,
   "roomsCount": 3,
-  "memoryUsage": { ... }
+  "memoryUsage": {
+    "rss": 54231040,
+    "heapTotal": 31252480,
+    "heapUsed": 21849120
+  }
 }
 ```
-Use this endpoint for Kubernetes liveness probes and AWS Target Group health checks.
+Use this endpoint for Kubernetes liveness/readiness probes, AWS ALB target group health checks, or UptimeRobot monitors.

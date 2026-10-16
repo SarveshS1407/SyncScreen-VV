@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, X, Activity, Server, Clock, RefreshCw } from 'lucide-react';
 import { RoomHealthReport } from '@watch-party/shared';
 import { socketService } from '../services/socket.js';
+import { apiUrl } from '../services/api.js';
 
 interface HealthMonitorModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ export const HealthMonitorModal: React.FC<HealthMonitorModalProps> = ({
 
   const fetchReport = () => {
     setLoading(true);
-    fetch(`/api/rooms/${roomCode}/health`)
+    fetch(apiUrl(`/api/rooms/${roomCode}/health`))
       .then((res) => res.json())
       .then((data) => {
         setReport(data);
