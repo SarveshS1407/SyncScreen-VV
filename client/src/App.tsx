@@ -13,13 +13,13 @@ import { BlindPickModal } from './components/CreativeFeatures/BlindPickModal.js'
 import { MomentMarkerModal } from './components/CreativeFeatures/MomentMarkerModal.js';
 import { HealthMonitorModal } from './components/HealthMonitorModal.js';
 import { useWatchParty } from './hooks/useWatchParty.js';
-import { MessageSquare, ListVideo, Users, Bookmark, Film } from 'lucide-react';
+import { MessageSquare, ListVideo, Users, Bookmark, Film, RefreshCw, AlertTriangle, Play } from 'lucide-react';
 import { MediaType, VibeType } from '@watch-party/shared';
 
 export function App() {
   const [roomCode, setRoomCode] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'chat' | 'queue' | 'members' | 'moments'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'queue' | 'members'>('chat');
 
   // Modal visibility states
   const [showDiscovery, setShowDiscovery] = useState(false);
@@ -90,16 +90,27 @@ export function App() {
     window.history.pushState({}, '', `?room=${code}`);
   };
 
+  // Handle Leave Room
+  const handleLeaveRoom = () => {
+    if (window.confirm('Are you sure you want to leave this watch party?')) {
+      localStorage.removeItem(`wp_user_${roomCode}`);
+      setRoomCode('');
+      setUserName('');
+      window.history.pushState({}, '', window.location.pathname);
+    }
+  };
+
   // If user is not yet in a room or disconnected with error, show Landing
   if (!roomCode || !userName || !room || !currentParticipant) {
     return (
       <div className="min-h-screen bg-cinematic-950">
         {errorMessage && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-rose-600 text-white px-5 py-2.5 rounded-2xl shadow-xl font-medium text-xs flex items-center gap-2">
+          <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-rose-600/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-3 border border-rose-400/30">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{errorMessage}</span>
             <button
               onClick={() => { setRoomCode(''); setUserName(''); }}
-              className="underline ml-2"
+              className="underline hover:text-rose-200 ml-2 font-semibold"
             >
               Back to Home
             </button>
@@ -120,16 +131,29 @@ export function App() {
   const canCreatePolls = room.permissions.createPolls === 'everyone' || isHost;
 
   return (
-    <div className="min-h-screen bg-cinematic-950 flex flex-col text-slate-100">
+    <div className="min-h-screen bg-cinematic-950 flex flex-col text-slate-100 selection:bg-brand-primary selection:text-white">
+      {/* Reconnecting Banner */}
+      {connectionStatus === 'reconnecting' && (
+        <div className="bg-amber-500/90 text-cinematic-950 px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 sticky top-0 z-50 shadow-md">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          <span>Temporary connection drop. Reconnecting to party room...</span>
+        </div>
+      )}
+
       {/* Top Header Bar */}
-      <header className="px-4 py-3 border-b border-slate-800/80 bg-cinematic-900/90 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between">
+      <header className="px-4 sm:px-6 py-3.5 border-b border-slate-800/80 bg-cinematic-900/90 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-brand-primary flex items-center justify-center font-bold text-white shadow-md">
-            WP
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-primary to-brand-accent flex items-center justify-center font-black text-white shadow-md ring-1 ring-white/10">
+            <Play className="w-4 h-4 fill-current ml-0.5" />
           </div>
-          <span className="font-extrabold text-white text-sm hidden sm:inline">
-            WatchParty
-          </span>
+          <div>
+            <span className="font-black text-white text-base tracking-tight hidden sm:inline">
+              SyncScreen
+            </span>
+            <span className="text-[10px] font-mono font-bold text-brand-primary block -mt-1 sm:hidden">
+              SYNC
+            </span>
+          </div>
         </div>
 
         {/* Real-time Watch Party Pulse Activity Gauge */}
@@ -140,7 +164,7 @@ export function App() {
       </header>
 
       {/* Main Party Room Body */}
-      <main className="flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-5 flex flex-col lg:flex-row gap-5">
+      <main className="flex-1 max-w-[1700px] w-full mx-auto p-3 sm:p-5 flex flex-col lg:flex-row gap-5">
         {/* Left Column: Player & Room Controls */}
         <div className="flex-1 flex flex-col gap-4 min-w-0">
           <RoomControls
@@ -152,6 +176,7 @@ export function App() {
             onOpenBlindPick={() => setShowBlindPick(true)}
             onOpenHealth={() => setShowHealth(true)}
             onUpdatePermissions={updatePermissions}
+            onLeaveRoom={handleLeaveRoom}
           />
 
           {/* Central Synchronized Video Player */}
@@ -168,20 +193,20 @@ export function App() {
 
           {/* Moment Markers Strip */}
           {room.markers.length > 0 && (
-            <div className="p-3 bg-cinematic-900/90 border border-slate-800 rounded-2xl glass-panel flex items-center gap-2 overflow-x-auto">
-              <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 flex-shrink-0">
-                <Bookmark className="w-3.5 h-3.5 text-amber-400" /> Bookmarks:
+            <div className="p-3.5 bg-cinematic-900/90 border border-slate-800/80 rounded-2xl glass-panel flex items-center gap-2.5 overflow-x-auto shadow-sm">
+              <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5 flex-shrink-0">
+                <Bookmark className="w-4 h-4" /> Bookmarks:
               </span>
               <div className="flex items-center gap-2">
                 {room.markers.map((m) => (
                   <button
                     key={m.id}
                     onClick={() => canControlPlayback && sendPlaybackCommand('seek', m.timestampSeconds)}
-                    className="px-2.5 py-1 rounded-xl bg-cinematic-800 hover:bg-cinematic-700 border border-slate-700 text-xs text-slate-200 whitespace-nowrap transition flex items-center gap-1"
+                    className="px-3 py-1 rounded-xl bg-cinematic-800/90 hover:bg-cinematic-700 border border-slate-700/80 text-xs text-slate-200 whitespace-nowrap transition flex items-center gap-1.5 group"
                   >
-                    <span>{m.title}</span>
-                    <span className="font-mono text-[10px] text-amber-400">
-                      ({Math.floor(m.timestampSeconds / 60)}:{(m.timestampSeconds % 60).toString().padStart(2, '0')})
+                    <span className="font-medium group-hover:text-white">{m.title}</span>
+                    <span className="font-mono text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1 rounded">
+                      {Math.floor(m.timestampSeconds / 60)}:{(m.timestampSeconds % 60).toString().padStart(2, '0')}
                     </span>
                   </button>
                 ))}
@@ -191,38 +216,41 @@ export function App() {
         </div>
 
         {/* Right Column: Multi-tab Interactive Sidebar */}
-        <div className="w-full lg:w-96 flex flex-col h-[600px] lg:h-auto min-h-[500px]">
+        <div className="w-full lg:w-96 flex flex-col h-[520px] lg:h-auto min-h-[480px]">
           {/* Tabs Navigation */}
-          <div className="flex bg-cinematic-900 border border-slate-800 p-1 rounded-2xl mb-3 glass-panel">
+          <div className="flex bg-cinematic-900 border border-slate-800/90 p-1.5 rounded-2xl mb-3 glass-panel shadow-sm">
             <button
               onClick={() => setActiveTab('chat')}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+              className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
                 activeTab === 'chat'
-                  ? 'bg-brand-primary text-white shadow'
+                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <MessageSquare className="w-3.5 h-3.5" /> Chat
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Chat</span>
             </button>
             <button
               onClick={() => setActiveTab('queue')}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+              className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
                 activeTab === 'queue'
-                  ? 'bg-brand-primary text-white shadow'
+                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <ListVideo className="w-3.5 h-3.5" /> Queue ({room.queue.length})
+              <ListVideo className="w-3.5 h-3.5" />
+              <span>Queue ({room.queue.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('members')}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+              className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
                 activeTab === 'members'
-                  ? 'bg-brand-primary text-white shadow'
+                  ? 'bg-brand-primary text-white shadow-md shadow-brand-primary/25'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Users className="w-3.5 h-3.5" /> Party ({room.participants.filter(p => p.isOnline).length})
+              <Users className="w-3.5 h-3.5" />
+              <span>Party ({room.participants.filter(p => p.isOnline).length})</span>
             </button>
           </div>
 

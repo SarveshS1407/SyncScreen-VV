@@ -6,6 +6,7 @@ import {
   RotateCw,
   Volume2,
   VolumeX,
+  Volume1,
   Maximize,
   Minimize,
   Activity,
@@ -48,6 +49,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showControls, setShowControls] = useState<boolean>(true);
   const [autoplayBlocked, setAutoplayBlocked] = useState<boolean>(false);
+  const [hoveredTime, setHoveredTime] = useState<number | null>(null);
+  const [hoveredPositionPct, setHoveredPositionPct] = useState<number>(0);
+  const [centerAnimation, setCenterAnimation] = useState<'play' | 'pause' | null>(null);
+
   const controlsTimeoutRef = useRef<number | null>(null);
 
   // Drift Correction Engine Hook
@@ -103,12 +108,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   // User playback actions
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!canControl) return;
     const nextAction = playback.status === 'playing' ? 'pause' : 'play';
     const pos = videoRef.current ? videoRef.current.currentTime : playback.positionSeconds;
+
+    setCenterAnimation(nextAction === 'play' ? 'play' : 'pause');
+    setTimeout(() => setCenterAnimation(null), 600);
+
     onCommand(nextAction, pos);
-  };
+  }, [canControl, playback.status, playback.positionSeconds, onCommand]);
 
   const handleSeek = (newTime: number) => {
     if (!canControl) return;
@@ -119,11 +128,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     onCommand('seek', clamped);
   };
 
-  const handleSkip = (seconds: number) => {
+  const handleSkip = useCallback((seconds: number) => {
     if (!canControl) return;
     const current = videoRef.current ? videoRef.current.currentTime : currentTime;
-    handleSeek(current + seconds);
-  };
+    const clamped = Math.max(0, Math.min(current + seconds, duration));
+    if (videoRef.current) {
+      videoRef.current.currentTime = clamped;
+    }
+    onCommand('seek', clamped);
+  }, [canControl, currentTime, duration, onCommand]);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -135,7 +148,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     if (!videoRef.current) return;
     const nextMuted = !isMuted;
     videoRef.current.muted = nextMuted;
@@ -144,9 +157,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setVolume(0.5);
       videoRef.current.volume = 0.5;
     }
-  };
+  }, [isMuted, volume]);
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen().catch(() => {});
@@ -155,7 +168,47 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       document.exitFullscreen().catch(() => {});
       setIsFullscreen(false);
     }
-  };
+  }, []);
+
+  // Keyboard Navigation / Hotkeys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger hotkeys if user is typing in input or textarea
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      switch (e.code) {
+        case 'Space':
+        case 'KeyK':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'KeyM':
+          e.preventDefault();
+          toggleMute();
+          break;
+        case 'KeyF':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'ArrowLeft':
+        case 'KeyJ':
+          e.preventDefault();
+          handleSkip(-10);
+          break;
+        case 'ArrowRight':
+        case 'KeyL':
+          e.preventDefault();
+          handleSkip(10);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlay, toggleMute, toggleFullscreen, handleSkip]);
 
   // Unblock autoplay
   const handleUnmuteAndSync = () => {
@@ -178,7 +231,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }, 3000);
   };
 
+  const handleScrubberMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const pct = x / rect.width;
+    setHoveredPositionPct(pct * 100);
+    setHoveredTime(pct * duration);
+  };
+
   const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs < 0) return '0:00';
     const mins = Math.floor(secs / 60);
     const remainder = Math.floor(secs % 60);
     return `${mins}:${remainder < 10 ? '0' : ''}${remainder}`;
@@ -188,8 +250,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     <div
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => playback.status === 'playing' && setShowControls(false)}
-      className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800/80 group select-none"
+      onMouseLeave={() => {
+        setHoveredTime(null);
+        if (playback.status === 'playing') setShowControls(false);
+      }}
+      className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-800/90 group select-none ring-1 ring-white/5"
+      tabIndex={0}
+      aria-label="Video Player"
     >
       {/* HTML5 Native Video Element */}
       <video
@@ -203,21 +270,35 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onClick={togglePlay}
       />
 
+      {/* Center Action Splash Animation */}
+      {centerAnimation && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+          <div className="w-20 h-20 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white border border-white/20 animate-ping">
+            {centerAnimation === 'play' ? (
+              <Play className="w-8 h-8 fill-current ml-1" />
+            ) : (
+              <Pause className="w-8 h-8 fill-current" />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Autoplay Blocked Banner */}
       {autoplayBlocked && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center z-40 p-6 text-center">
-          <div className="w-16 h-16 rounded-full bg-brand-primary/20 flex items-center justify-center text-brand-primary mb-4 animate-bounce">
+        <div className="absolute inset-0 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center z-40 p-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-brand-primary/20 flex items-center justify-center text-brand-primary mb-4 animate-bounce border border-brand-primary/40 shadow-lg shadow-brand-primary/30">
             <Volume2 className="w-8 h-8" />
           </div>
           <h3 className="text-xl font-bold text-white mb-2">Browser Autoplay Blocked</h3>
-          <p className="text-slate-300 text-sm max-w-md mb-6">
-            Your browser requires a user click to enable sound and synchronize with the party.
+          <p className="text-slate-300 text-sm max-w-md mb-6 leading-relaxed">
+            Your browser requires manual interaction before audio playback and live room synchronization can proceed.
           </p>
           <button
             onClick={handleUnmuteAndSync}
-            className="px-6 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-medium rounded-xl shadow-lg shadow-brand-primary/30 transition transform hover:scale-105 active:scale-95 flex items-center gap-2"
+            className="px-6 py-3 bg-gradient-to-r from-brand-primary to-brand-accent hover:opacity-95 text-white font-bold rounded-xl shadow-xl shadow-brand-primary/40 transition transform hover:scale-105 active:scale-95 flex items-center gap-2 text-sm"
           >
-            <Sparkles className="w-5 h-5" /> Click to Unmute & Sync
+            <Sparkles className="w-5 h-5 text-amber-300" />
+            <span>Click to Unmute &amp; Sync</span>
           </button>
         </div>
       )}
@@ -231,7 +312,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               left: `${(reaction.x ?? 0.5) * 100}%`,
               bottom: '15%',
             }}
-            className="absolute text-4xl animate-float-up pointer-events-none drop-shadow-lg"
+            className="absolute text-4xl sm:text-5xl animate-float-up pointer-events-none drop-shadow-xl"
           >
             {reaction.emoji}
           </div>
@@ -239,33 +320,43 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </div>
 
       {/* Top Overlay: Media Title & Sync Status Pill */}
-      <div className={`absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 via-black/30 to-transparent flex items-center justify-between transition-opacity duration-300 z-30 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="flex items-center gap-3">
-          <div className="bg-brand-primary/20 border border-brand-primary/40 px-2.5 py-1 rounded-md text-xs font-semibold text-brand-primary uppercase tracking-wider">
+      <div
+        className={`absolute top-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-b from-black/90 via-black/40 to-transparent flex items-center justify-between transition-opacity duration-300 z-30 ${
+          showControls ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="bg-brand-primary/25 border border-brand-primary/40 px-2.5 py-1 rounded-lg text-[10px] font-bold text-brand-primary uppercase tracking-widest flex-shrink-0">
             {playback.mediaType}
           </div>
-          <h2 className="text-white font-semibold text-sm md:text-base drop-shadow-md truncate max-w-xs md:max-w-md">
-            {playback.mediaTitle || 'Playing Media'}
+          <h2 className="text-white font-bold text-sm sm:text-base drop-shadow-md truncate max-w-xs sm:max-w-md">
+            {playback.mediaTitle || 'Playing Video'}
           </h2>
         </div>
 
         {/* Sync Status Badge */}
         <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium backdrop-blur-md border ${
-            syncStatus === 'synced'
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-              : syncStatus === 'correcting'
-              ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse'
-              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-          }`}>
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md border shadow-sm ${
+              syncStatus === 'synced'
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35'
+                : syncStatus === 'correcting'
+                ? 'bg-amber-500/15 text-amber-400 border-amber-500/35 animate-pulse'
+                : 'bg-rose-500/15 text-rose-400 border-rose-500/35'
+            }`}
+            title={`Playback Drift: ${Math.abs(currentDriftMs)}ms`}
+          >
             <Activity className="w-3.5 h-3.5" />
             <span className="capitalize">{syncStatus}</span>
-            <span className="text-[10px] text-slate-400 opacity-80">({Math.abs(currentDriftMs)}ms)</span>
+            <span className="text-[10px] text-slate-400 opacity-90 font-mono">
+              ({Math.abs(currentDriftMs)}ms)
+            </span>
           </div>
 
           {!canControl && (
             <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-slate-800/80 text-slate-400 border border-slate-700">
-              <Lock className="w-3 h-3" /> Host Controls
+              <Lock className="w-3 h-3 text-amber-400" />
+              <span className="hidden sm:inline">Host Only</span>
             </div>
           )}
         </div>
@@ -274,14 +365,32 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {/* Center Buffering Spinner */}
       {isBuffering && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <div className="w-14 h-14 border-4 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin" />
+          <div className="w-14 h-14 border-4 border-brand-primary/30 border-t-brand-primary rounded-full animate-spin shadow-lg" />
         </div>
       )}
 
       {/* Bottom Control Bar */}
-      <div className={`absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent transition-opacity duration-300 z-30 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-        {/* Scrubber with Moment Markers */}
-        <div className="relative w-full mb-3 group/progress">
+      <div
+        className={`absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/95 via-black/70 to-transparent transition-opacity duration-300 z-30 ${
+          showControls ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        {/* Scrubber Container with Hover Tooltip */}
+        <div
+          onMouseMove={handleScrubberMouseMove}
+          onMouseLeave={() => setHoveredTime(null)}
+          className="relative w-full mb-3 group/progress cursor-pointer py-1.5"
+        >
+          {/* Hover Time Tooltip */}
+          {hoveredTime !== null && (
+            <div
+              style={{ left: `${hoveredPositionPct}%` }}
+              className="absolute -top-7 -translate-x-1/2 px-2 py-0.5 rounded-md bg-cinematic-900 border border-slate-700 text-[11px] text-slate-200 font-mono shadow-md pointer-events-none whitespace-nowrap"
+            >
+              {formatTime(hoveredTime)}
+            </div>
+          )}
+
           {/* Moment Marker Pins */}
           {markers.map((marker) => {
             const pct = duration > 0 ? (marker.timestampSeconds / duration) * 100 : 0;
@@ -293,8 +402,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                   e.stopPropagation();
                   if (canControl) handleSeek(marker.timestampSeconds);
                 }}
-                title={`${marker.title} (${formatTime(marker.timestampSeconds)})`}
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-amber-400 rounded-full shadow-lg border border-black cursor-pointer hover:scale-150 transition z-10"
+                title={`Marker: ${marker.title} (${formatTime(marker.timestampSeconds)})`}
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 rounded-full shadow-md border-2 border-cinematic-950 cursor-pointer hover:scale-150 transition-transform z-10"
               />
             );
           })}
@@ -307,25 +416,29 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             value={currentTime}
             disabled={!canControl}
             onChange={(e) => handleSeek(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-brand-primary hover:h-2 transition-all"
+            className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-brand-primary hover:h-2.5 transition-all"
+            aria-label="Video scrubber"
           />
         </div>
 
         {/* Buttons Row */}
         <div className="flex items-center justify-between text-white">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={togglePlay}
               disabled={!canControl}
               className={`p-2 rounded-xl transition ${
-                canControl ? 'hover:bg-white/10 active:scale-95' : 'opacity-50 cursor-not-allowed'
+                canControl
+                  ? 'hover:bg-white/10 active:scale-95 focus-visible:ring-1'
+                  : 'opacity-40 cursor-not-allowed'
               }`}
-              title={canControl ? (playback.status === 'playing' ? 'Pause' : 'Play') : 'Playback locked to host'}
+              title={canControl ? (playback.status === 'playing' ? 'Pause (Space)' : 'Play (Space)') : 'Playback locked to host'}
+              aria-label={playback.status === 'playing' ? 'Pause' : 'Play'}
             >
               {playback.status === 'playing' ? (
                 <Pause className="w-5 h-5 fill-current" />
               ) : (
-                <Play className="w-5 h-5 fill-current" />
+                <Play className="w-5 h-5 fill-current ml-0.5" />
               )}
             </button>
 
@@ -333,7 +446,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               onClick={() => handleSkip(-10)}
               disabled={!canControl}
               className="p-1.5 hover:bg-white/10 rounded-lg transition disabled:opacity-40"
-              title="Skip back 10s"
+              title="Skip back 10s (Left Arrow)"
+              aria-label="Skip back 10 seconds"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -342,18 +456,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               onClick={() => handleSkip(10)}
               disabled={!canControl}
               className="p-1.5 hover:bg-white/10 rounded-lg transition disabled:opacity-40"
-              title="Skip forward 10s"
+              title="Skip forward 10s (Right Arrow)"
+              aria-label="Skip forward 10 seconds"
             >
               <RotateCw className="w-4 h-4" />
             </button>
 
             {/* Volume Control */}
-            <div className="flex items-center gap-1.5 group/vol">
-              <button onClick={toggleMute} className="p-1.5 hover:bg-white/10 rounded-lg transition">
+            <div className="flex items-center gap-1.5 group/vol ml-1">
+              <button
+                onClick={toggleMute}
+                className="p-1.5 hover:bg-white/10 rounded-lg transition"
+                title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
+              >
                 {isMuted || volume === 0 ? (
                   <VolumeX className="w-4 h-4 text-rose-400" />
+                ) : volume < 0.5 ? (
+                  <Volume1 className="w-4 h-4 text-slate-300" />
                 ) : (
-                  <Volume2 className="w-4 h-4" />
+                  <Volume2 className="w-4 h-4 text-slate-300" />
                 )}
               </button>
               <input
@@ -363,12 +485,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 step="0.05"
                 value={isMuted ? 0 : volume}
                 onChange={handleVolumeChange}
-                className="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-primary opacity-70 group-hover/vol:opacity-100 transition"
+                className="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-primary opacity-80 group-hover/vol:opacity-100 transition"
+                aria-label="Volume slider"
               />
             </div>
 
             {/* Time Stamp */}
-            <span className="text-xs text-slate-300 font-mono ml-2">
+            <span className="text-xs text-slate-300 font-mono ml-2 hidden sm:inline">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
@@ -377,18 +500,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             {/* Add Moment Marker */}
             <button
               onClick={onOpenMarkerModal}
-              className="p-1.5 hover:bg-white/10 rounded-lg text-slate-300 hover:text-amber-400 transition flex items-center gap-1 text-xs"
-              title="Mark Moment"
+              className="px-2.5 py-1.5 hover:bg-white/10 rounded-xl text-slate-300 hover:text-amber-400 transition flex items-center gap-1.5 text-xs font-medium"
+              title="Bookmark this scene"
             >
               <Bookmark className="w-4 h-4" />
-              <span className="hidden sm:inline">Mark</span>
+              <span className="hidden sm:inline">Mark Scene</span>
             </button>
 
             {/* Fullscreen Toggle */}
             <button
               onClick={toggleFullscreen}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition"
-              title="Toggle Fullscreen"
+              className="p-1.5 hover:bg-white/10 rounded-lg transition text-slate-300 hover:text-white"
+              title="Fullscreen (F)"
+              aria-label="Toggle fullscreen"
             >
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
