@@ -9,3 +9,5 @@ shared/dist/
 .env.*.local
 *.log
 .vercel/
+.vercel
+.env*

@@ -5,7 +5,7 @@ import { z } from 'zod';
 // ==========================================
 
 export type PlaybackStatus = 'playing' | 'paused' | 'buffering';
-export type MediaType = 'mp4' | 'hls' | 'youtube' | 'custom';
+export type MediaType = 'mp4' | 'webm' | 'hls' | 'youtube' | 'custom';
 
 export interface PlaybackState {
   mediaId: string;
@@ -263,7 +263,7 @@ export const PlaybackCommandSchema = z.object({
   playbackRate: z.number().min(0.25).max(3.0).optional(),
   mediaUrl: z.string().url().optional(),
   mediaTitle: z.string().optional(),
-  mediaType: z.enum(['mp4', 'hls', 'youtube', 'custom']).optional(),
+  mediaType: z.enum(['mp4', 'webm', 'hls', 'youtube', 'custom']).optional(),
   durationSeconds: z.number().min(0).optional(),
   clientTimestamp: z.number(),
   expectedRevision: z.number().int().min(0),
@@ -282,7 +282,7 @@ export const SendReactionSchema = z.object({
 export const AddQueueItemSchema = z.object({
   title: z.string().trim().min(1).max(100),
   url: z.string().url(),
-  type: z.enum(['mp4', 'hls', 'youtube', 'custom']),
+  type: z.enum(['mp4', 'webm', 'hls', 'youtube', 'custom']),
   durationSeconds: z.number().min(0),
   thumbnailUrl: z.string().url().optional(),
 });

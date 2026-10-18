@@ -7,14 +7,15 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101.svg?logo=socketdotio&logoColor=white)](https://socket.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8.svg?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-6.0-646cff.svg?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Vitest](https://img.shields.io/badge/Tests-39%2F39%20Passing-10b981.svg?logo=vitest&logoColor=white)](tests/)
+[![Vitest](https://img.shields.io/badge/Tests-48%2F48%20Passing-10b981.svg?logo=vitest&logoColor=white)](tests/)
 [![Latency Benchmark](https://img.shields.io/badge/p95%20Latency-6.19ms-10b981.svg)](tests/perf-benchmark.ts)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-syncscreen--vv.vercel.app-000000.svg?logo=vercel&logoColor=white)](https://syncscreen-vv.vercel.app)
 [![Docker Ready](https://img.shields.io/badge/Docker-Ready-2496ed.svg?logo=docker&logoColor=white)](Dockerfile)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **A cinema-grade, real-time synchronized video streaming platform featuring sub-second drift correction, interactive social engagement, shared playlist queues, and live group voting.**
 
-[Key Features](#-key-features) • [Visual Showcase](#-visual-showcase) • [Architecture](#-system-architecture) • [Quick Start](#-quick-start) • [Environment Variables](#-environment-variables) • [Testing & QA](#-testing--quality-assurance) • [Deployment](#-deployment-runbook)
+[Live Production Demo](https://syncscreen-vv.vercel.app) • [Key Features](#-key-features) • [Visual Showcase](#-visual-showcase) • [Architecture](#-system-architecture) • [Quick Start](#-quick-start) • [Deployment Report](DEPLOYMENT_REPORT.md)
 
 </div>
 
@@ -266,11 +267,12 @@ npm run build
 ======================================================================
   SYNCSCREEN AUTOMATED TEST & BENCHMARK SUMMARY
 ======================================================================
-  [x] Vitest Unit & Integration Suites:   39 / 39 PASSING (100%)
-      - tests/unit/playback-drift.test.ts (11 tests)
-      - tests/integration/room-lifecycle.test.ts (10 tests)
-      - tests/integration/multi-client-sessions.test.ts (8 tests)
+  [x] Vitest Unit & Integration Suites:   48 / 48 PASSING (100%)
+      - tests/unit/playback-drift.test.ts (8 tests)
+      - tests/integration/room-lifecycle.test.ts (14 tests)
+      - tests/integration/multi-client-sessions.test.ts (7 tests)
       - tests/integration/phase3-features.test.ts (10 tests)
+      - tests/integration/playback-pipeline.test.ts (9 tests)
 
   [x] TypeScript Compiler Verification:   0 ERRORS across 3 packages
       - @watch-party/shared (tsc --noEmit)

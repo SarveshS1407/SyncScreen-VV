@@ -41,7 +41,8 @@ export const WatchPartyPulse: React.FC<WatchPartyPulseProps> = ({
         title={`Room Reaction Energy: ${pulse.reactionEnergy}%`}
       >
         <Flame className={`w-3.5 h-3.5 ${pulse.reactionEnergy > 45 ? 'animate-bounce' : ''}`} />
-        <span>Pulse {pulse.reactionEnergy}%</span>
+        <span className="hidden sm:inline">Pulse </span>
+        <span>{pulse.reactionEnergy}%</span>
       </div>
 
       {/* Sync Health Score */}

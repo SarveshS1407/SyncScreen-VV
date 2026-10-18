@@ -509,8 +509,9 @@ if (fs.existsSync(clientDistPath)) {
   });
 }
 
-server.listen(PORT, () => {
-  console.log(`[WatchParty Server] Running on http://localhost:${PORT}`);
+const portNumber = Number(PORT);
+server.listen(portNumber, '0.0.0.0', () => {
+  console.log(`[WatchParty Server] Running on http://0.0.0.0:${portNumber}`);
 });
 
 export { app, server, io, roomManager };

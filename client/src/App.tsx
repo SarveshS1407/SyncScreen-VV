@@ -208,6 +208,7 @@ export function App() {
             floatingReactions={floatingReactions}
             onCommand={(action, pos, opts) => sendPlaybackCommand(action, pos, opts)}
             onOpenMarkerModal={() => setShowMomentMarker(true)}
+            onOpenDiscovery={() => setShowDiscovery(true)}
           />
 
           {/* Moment Markers Strip */}

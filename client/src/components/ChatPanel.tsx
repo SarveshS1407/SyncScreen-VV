@@ -125,12 +125,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       )}
 
       {/* Emoji Reactions Quick Bar */}
-      <div className="px-3 py-2 bg-cinematic-950/70 border-t border-slate-800/80 flex items-center justify-between gap-1 overflow-x-auto">
+      <div className="px-3 py-2 bg-cinematic-950/70 border-t border-slate-800/80 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none">
         {QUICK_EMOJIS.map((emoji) => (
           <button
             key={emoji}
             onClick={() => handleEmojiClick(emoji)}
-            className="hover:scale-135 active:scale-90 transition transform p-1 text-base sm:text-lg rounded-lg hover:bg-slate-800/60 flex-shrink-0"
+            className="min-h-[38px] min-w-[38px] sm:min-h-[40px] sm:min-w-[40px] hover:scale-125 active:scale-95 transition transform p-1 text-lg sm:text-xl rounded-xl hover:bg-slate-800/80 active:bg-slate-800 flex items-center justify-center flex-shrink-0"
             title={`React with ${emoji}`}
             aria-label={`React with ${emoji}`}
           >
@@ -148,7 +148,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onChange={(e) => setText(e.target.value)}
             placeholder="Type a message..."
             maxLength={500}
-            className="w-full bg-cinematic-900 border border-slate-700/80 focus:border-brand-primary focus:outline-none rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white placeholder-slate-500 transition pr-12"
+            className="w-full bg-cinematic-900 border border-slate-700/80 focus:border-brand-primary focus:outline-none rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 transition pr-12"
           />
           {text.length > 350 && (
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500">
@@ -160,7 +160,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <button
           type="submit"
           disabled={!text.trim()}
-          className="p-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl disabled:opacity-40 transition shadow-md shadow-brand-primary/20 active:scale-95"
+          className="min-h-[44px] min-w-[44px] p-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white rounded-xl disabled:opacity-40 transition shadow-md shadow-brand-primary/20 active:scale-95 flex items-center justify-center flex-shrink-0"
           aria-label="Send message"
         >
           <Send className="w-4 h-4" />

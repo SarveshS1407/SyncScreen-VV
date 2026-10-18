@@ -14,10 +14,11 @@ interface MovieDiscoveryModalProps {
 const GENRES = ['All', 'Action', 'Sci-Fi', 'Animation', 'Horror', 'Documentary', 'Adventure', 'Comedy'];
 
 const SAMPLE_PRESETS: { title: string; url: string; type: MediaType }[] = [
-  { title: 'Big Buck Bunny (Animation 4K)', url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', type: 'mp4' },
-  { title: 'Tears of Steel (Sci-Fi VFX)', url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4', type: 'mp4' },
-  { title: 'Sintel (Fantasy Adventure)', url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4', type: 'mp4' },
-  { title: 'Night of the Living Dead (1968 Horror)', url: 'https://ia800501.us.archive.org/22/items/night_of_the_living_dead/night_of_the_living_dead_512kb.mp4', type: 'mp4' },
+  { title: 'Sintel (Trailer MP4)', url: 'https://media.w3.org/2010/05/sintel/trailer.mp4', type: 'mp4' },
+  { title: 'Big Buck Bunny (Full Movie MP4)', url: 'https://media.w3.org/2010/05/bunny/movie.mp4', type: 'mp4' },
+  { title: 'Disneynature Oceans (HD MP4)', url: 'https://vjs.zencdn.net/v/oceans.mp4', type: 'mp4' },
+  { title: 'Nature Blooming (4K MP4)', url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', type: 'mp4' },
+  { title: 'Tears of Steel (4K WebM)', url: 'https://upload.wikimedia.org/wikipedia/commons/1/10/Tears_of_Steel_in_4k_-_Official_Blender_Foundation_release.webm', type: 'webm' },
 ];
 
 export const MovieDiscoveryModal: React.FC<MovieDiscoveryModalProps> = ({

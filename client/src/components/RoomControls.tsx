@@ -75,7 +75,7 @@ export const RoomControls: React.FC<RoomControlsProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={copyLink}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-xs font-semibold text-white flex items-center gap-1.5 transition shadow-sm"
+            className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700/80 text-xs font-semibold text-white flex items-center gap-1.5 transition shadow-sm"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-brand-primary" />}
             <span>{copiedLink ? 'Link Copied!' : 'Share Invite'}</span>
@@ -84,7 +84,7 @@ export const RoomControls: React.FC<RoomControlsProps> = ({
           {onLeaveRoom && (
             <button
               onClick={onLeaveRoom}
-              className="p-2 rounded-xl bg-slate-800/60 hover:bg-rose-500/20 border border-slate-700/60 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition"
+              className="min-h-[40px] min-w-[40px] p-2 rounded-xl bg-slate-800/60 hover:bg-rose-500/20 active:scale-95 border border-slate-700/60 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition flex items-center justify-center"
               title="Leave Room"
               aria-label="Leave Room"
             >
@@ -99,7 +99,7 @@ export const RoomControls: React.FC<RoomControlsProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onOpenDiscovery}
-            className="px-3 py-1.5 rounded-xl bg-brand-primary/20 hover:bg-brand-primary/30 border border-brand-primary/40 text-brand-primary text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
+            className="min-h-[40px] px-3.5 py-2 rounded-xl bg-brand-primary/20 hover:bg-brand-primary/30 border border-brand-primary/40 text-brand-primary text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
           >
             <Film className="w-3.5 h-3.5" />
             <span>Browse Movies</span>
@@ -107,7 +107,7 @@ export const RoomControls: React.FC<RoomControlsProps> = ({
 
           <button
             onClick={onOpenPolls}
-            className="px-3 py-1.5 rounded-xl bg-cinematic-800 hover:bg-cinematic-700 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition"
+            className="min-h-[40px] px-3 py-2 rounded-xl bg-cinematic-800 hover:bg-cinematic-700 active:scale-95 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition"
           >
             <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
             <span>Polls</span>
@@ -115,7 +115,7 @@ export const RoomControls: React.FC<RoomControlsProps> = ({
 
           <button
             onClick={onOpenVibe}
-            className="px-3 py-1.5 rounded-xl bg-cinematic-800 hover:bg-cinematic-700 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition"
+            className="min-h-[40px] px-3 py-2 rounded-xl bg-cinematic-800 hover:bg-cinematic-700 active:scale-95 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition"
           >
             <Compass className="w-3.5 h-3.5 text-brand-cyan" />
             <span>Vibe</span>
@@ -123,7 +123,7 @@ export const RoomControls: React.FC<RoomControlsProps> = ({
 
           <button
             onClick={onOpenBlindPick}
-            className="px-3 py-1.5 rounded-xl bg-cinematic-800 hover:bg-cinematic-700 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition"
+            className="min-h-[40px] px-3 py-2 rounded-xl bg-cinematic-800 hover:bg-cinematic-700 active:scale-95 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition"
           >
             <EyeOff className="w-3.5 h-3.5 text-rose-400" />
             <span>Blind Pick</span>
@@ -133,7 +133,7 @@ export const RoomControls: React.FC<RoomControlsProps> = ({
         {isHost && (
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition ml-auto"
+            className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700/80 text-xs font-medium text-slate-300 hover:text-white flex items-center gap-1.5 transition ml-auto"
             title="Room Settings &amp; Permissions"
           >
             <Settings className="w-3.5 h-3.5 text-slate-400" />

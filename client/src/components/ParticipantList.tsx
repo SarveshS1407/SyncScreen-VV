@@ -119,7 +119,7 @@ export const ParticipantList: React.FC<ParticipantListProps> = ({
                   ) : (
                     <button
                       onClick={() => setConfirmTransferId(p.id)}
-                      className="p-1.5 hover:bg-slate-700/80 rounded-xl text-slate-400 hover:text-amber-300 transition text-xs flex items-center gap-1"
+                      className="min-h-[36px] min-w-[36px] p-2 hover:bg-slate-700/80 active:scale-95 rounded-xl text-slate-400 hover:text-amber-300 transition text-xs flex items-center justify-center"
                       title={`Transfer host to ${p.name}`}
                       aria-label={`Transfer host to ${p.name}`}
                     >

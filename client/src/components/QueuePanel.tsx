@@ -143,7 +143,7 @@ export const QueuePanel: React.FC<QueuePanelProps> = ({
                   <>
                     <button
                       onClick={() => onPlayItem(item.id)}
-                      className="p-1.5 hover:bg-brand-primary/20 hover:text-brand-primary rounded-lg text-slate-400 transition"
+                      className="min-h-[36px] min-w-[36px] p-2 hover:bg-brand-primary/20 hover:text-brand-primary active:scale-95 rounded-xl text-slate-400 transition flex items-center justify-center"
                       title="Play Now"
                       aria-label={`Play ${item.title} now`}
                     >
@@ -152,7 +152,7 @@ export const QueuePanel: React.FC<QueuePanelProps> = ({
                     <button
                       onClick={() => moveItem(index, 'up')}
                       disabled={index === 0}
-                      className="p-1 hover:bg-slate-700 rounded text-slate-400 disabled:opacity-20 transition"
+                      className="min-h-[36px] min-w-[36px] p-2 hover:bg-slate-700 active:scale-95 rounded-xl text-slate-400 disabled:opacity-20 transition flex items-center justify-center"
                       title="Move Up"
                       aria-label="Move item up"
                     >
@@ -161,7 +161,7 @@ export const QueuePanel: React.FC<QueuePanelProps> = ({
                     <button
                       onClick={() => moveItem(index, 'down')}
                       disabled={index === queue.length - 1}
-                      className="p-1 hover:bg-slate-700 rounded text-slate-400 disabled:opacity-20 transition"
+                      className="min-h-[36px] min-w-[36px] p-2 hover:bg-slate-700 active:scale-95 rounded-xl text-slate-400 disabled:opacity-20 transition flex items-center justify-center"
                       title="Move Down"
                       aria-label="Move item down"
                     >
@@ -169,7 +169,7 @@ export const QueuePanel: React.FC<QueuePanelProps> = ({
                     </button>
                     <button
                       onClick={() => onRemoveItem(item.id)}
-                      className="p-1.5 hover:bg-rose-500/20 hover:text-rose-400 rounded-lg text-slate-400 transition"
+                      className="min-h-[36px] min-w-[36px] p-2 hover:bg-rose-500/20 hover:text-rose-400 active:scale-95 rounded-xl text-slate-400 transition flex items-center justify-center"
                       title="Remove from queue"
                       aria-label="Remove item"
                     >

@@ -12,7 +12,10 @@ import {
   Activity,
   Sparkles,
   Lock,
-  Bookmark
+  Bookmark,
+  AlertTriangle,
+  Film,
+  RefreshCw
 } from 'lucide-react';
 import { PlaybackState, ReactionEvent, MomentMarker, SyncStatus } from '@watch-party/shared';
 import { useDriftCorrection } from '../hooks/useDriftCorrection.js';
@@ -26,6 +29,7 @@ interface VideoPlayerProps {
   floatingReactions: ReactionEvent[];
   onCommand: (action: 'play' | 'pause' | 'seek' | 'rate_change', pos: number, opts?: { playbackRate?: number }) => void;
   onOpenMarkerModal: () => void;
+  onOpenDiscovery?: () => void;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -37,6 +41,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   floatingReactions,
   onCommand,
   onOpenMarkerModal,
+  onOpenDiscovery,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -44,11 +49,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(playback.durationSeconds || 100);
   const [isBuffering, setIsBuffering] = useState<boolean>(false);
+  const [isActuallyPlaying, setIsActuallyPlaying] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(1);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showControls, setShowControls] = useState<boolean>(true);
   const [autoplayBlocked, setAutoplayBlocked] = useState<boolean>(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [hoveredPositionPct, setHoveredPositionPct] = useState<number>(0);
   const [centerAnimation, setCenterAnimation] = useState<'play' | 'pause' | null>(null);
@@ -67,32 +74,79 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Track playback status updates from server
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !playback.mediaUrl) return;
 
     if (playback.status === 'playing') {
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          if (err.name === 'NotAllowedError') {
-            setAutoplayBlocked(true);
-          }
-        });
+      if (video.paused) {
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setMediaError(null);
+              setAutoplayBlocked(false);
+            })
+            .catch((err) => {
+              if (err.name === 'NotAllowedError') {
+                setAutoplayBlocked(true);
+              } else {
+                setMediaError(`Playback error: ${err.message || 'Stream blocked or unsupported'}`);
+              }
+            });
+        }
       }
     } else if (playback.status === 'paused') {
-      video.pause();
+      if (!video.paused) {
+        video.pause();
+      }
     }
-  }, [playback.status, playback.revision]);
+  }, [playback.status, playback.revision, playback.mediaUrl]);
 
   // Handle media URL change
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.src !== playback.mediaUrl) {
-      video.src = playback.mediaUrl;
-      video.currentTime = playback.positionSeconds;
+
+    setMediaError(null);
+    setAutoplayBlocked(false);
+
+    if (playback.mediaUrl) {
+      if (video.src !== playback.mediaUrl) {
+        video.src = playback.mediaUrl;
+        video.currentTime = playback.positionSeconds || 0;
+        video.load();
+      }
+    } else {
+      video.removeAttribute('src');
       video.load();
     }
   }, [playback.mediaUrl]);
+
+  // Video element error listener
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const video = e.currentTarget;
+    const err = video.error;
+    let message = 'Unable to play video source. Please check media availability or network connection.';
+    if (err) {
+      switch (err.code) {
+        case 1:
+          message = 'Media loading aborted by browser or network.';
+          break;
+        case 2:
+          message = 'Network error occurred while downloading video.';
+          break;
+        case 3:
+          message = 'Media decode error: Corrupted video or unsupported codec.';
+          break;
+        case 4:
+          message = 'Video source not supported or URL inaccessible (HTTP 403/404).';
+          break;
+        default:
+          message = err.message || message;
+      }
+    }
+    setMediaError(message);
+    setIsBuffering(false);
+  };
 
   // Time update listener
   const handleTimeUpdate = () => {
@@ -104,20 +158,43 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration || playback.durationSeconds || 1);
+      setMediaError(null);
     }
   };
 
   // User playback actions
   const togglePlay = useCallback(() => {
     if (!canControl) return;
+    const video = videoRef.current;
     const nextAction = playback.status === 'playing' ? 'pause' : 'play';
-    const pos = videoRef.current ? videoRef.current.currentTime : playback.positionSeconds;
+    const pos = video ? video.currentTime : playback.positionSeconds;
 
     setCenterAnimation(nextAction === 'play' ? 'play' : 'pause');
     setTimeout(() => setCenterAnimation(null), 600);
 
+    // Call video.play() / video.pause() directly inside user click handler to capture transient user activation
+    if (video && playback.mediaUrl) {
+      if (nextAction === 'play') {
+        const p = video.play();
+        if (p !== undefined) {
+          p.then(() => {
+            setMediaError(null);
+            setAutoplayBlocked(false);
+          }).catch((err) => {
+            if (err.name === 'NotAllowedError') {
+              setAutoplayBlocked(true);
+            } else {
+              setMediaError(`Play rejected: ${err.message}`);
+            }
+          });
+        }
+      } else {
+        video.pause();
+      }
+    }
+
     onCommand(nextAction, pos);
-  }, [canControl, playback.status, playback.positionSeconds, onCommand]);
+  }, [canControl, playback.status, playback.positionSeconds, playback.mediaUrl, onCommand]);
 
   const handleSeek = (newTime: number) => {
     if (!canControl) return;
@@ -173,7 +250,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Keyboard Navigation / Hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger hotkeys if user is typing in input or textarea
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
         return;
@@ -217,18 +293,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setIsMuted(false);
     videoRef.current.play().then(() => {
       setAutoplayBlocked(false);
+      setMediaError(null);
     }).catch(() => {});
   };
 
   // Auto-hide controls
-  const handleMouseMove = () => {
+  const handleUserActivity = () => {
     setShowControls(true);
     if (controlsTimeoutRef.current) window.clearTimeout(controlsTimeoutRef.current);
     controlsTimeoutRef.current = window.setTimeout(() => {
       if (playback.status === 'playing') {
         setShowControls(false);
       }
-    }, 3000);
+    }, 3500);
   };
 
   const handleScrubberMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -249,7 +326,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   return (
     <div
       ref={containerRef}
-      onMouseMove={handleMouseMove}
+      onMouseMove={handleUserActivity}
+      onTouchStart={handleUserActivity}
       onMouseLeave={() => {
         setHoveredTime(null);
         if (playback.status === 'playing') setShowControls(false);
@@ -262,16 +340,89 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       <video
         ref={videoRef}
         playsInline
+        crossOrigin="anonymous"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
+        onCanPlay={() => {
+          setIsBuffering(false);
+          setMediaError(null);
+        }}
+        onPlaying={() => {
+          setIsBuffering(false);
+          setIsActuallyPlaying(true);
+          setMediaError(null);
+        }}
+        onPause={() => setIsActuallyPlaying(false)}
+        onError={handleVideoError}
         onEnded={() => {
           if (canControl) onCommand('pause', duration);
         }}
         className="w-full h-full object-contain cursor-pointer"
         onClick={togglePlay}
       />
+
+      {/* No Media Loaded Placeholder */}
+      {!playback.mediaUrl && (
+        <div className="absolute inset-0 bg-cinematic-950 flex flex-col items-center justify-center z-25 p-6 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary mb-3">
+            <Film className="w-8 h-8" />
+          </div>
+          <h3 className="text-white font-bold text-base sm:text-lg mb-1">No Video Loaded</h3>
+          <p className="text-slate-400 text-xs sm:text-sm max-w-sm mb-5">
+            {isHost
+              ? 'Select a movie from the catalog or paste a direct video stream URL.'
+              : 'Waiting for the host to select a title to watch together...'}
+          </p>
+          {isHost && onOpenDiscovery && (
+            <button
+              onClick={onOpenDiscovery}
+              className="px-5 py-2.5 bg-gradient-to-r from-brand-primary to-indigo-600 hover:opacity-95 text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-brand-primary/30 transition transform hover:scale-105"
+            >
+              Browse Movie Catalog
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Playback Error Overlay */}
+      {mediaError && (
+        <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center z-40 p-6 text-center animate-in fade-in">
+          <div className="w-14 h-14 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400 mb-3 border border-rose-500/40">
+            <AlertTriangle className="w-7 h-7" />
+          </div>
+          <h3 className="text-base sm:text-lg font-bold text-white mb-1.5">Stream Error</h3>
+          <p className="text-slate-300 text-xs sm:text-sm max-w-md mb-5 leading-relaxed font-mono">
+            {mediaError}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => {
+                setMediaError(null);
+                if (videoRef.current && playback.mediaUrl) {
+                  videoRef.current.load();
+                  if (playback.status === 'playing') {
+                    videoRef.current.play().catch(() => {});
+                  }
+                }
+              }}
+              className="min-h-[44px] px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition border border-slate-700 flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry Stream</span>
+            </button>
+            {onOpenDiscovery && (
+              <button
+                onClick={onOpenDiscovery}
+                className="min-h-[44px] px-5 py-2.5 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-brand-primary/30 flex items-center gap-2"
+              >
+                <Film className="w-4 h-4" />
+                <span>Choose Another Movie</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Center Action Splash Animation */}
       {centerAnimation && (
@@ -292,13 +443,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <div className="w-16 h-16 rounded-full bg-brand-primary/20 flex items-center justify-center text-brand-primary mb-4 animate-bounce border border-brand-primary/40 shadow-lg shadow-brand-primary/30">
             <Volume2 className="w-8 h-8" />
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">Browser Autoplay Blocked</h3>
-          <p className="text-slate-300 text-sm max-w-md mb-6 leading-relaxed">
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Browser Autoplay Blocked</h3>
+          <p className="text-slate-300 text-xs sm:text-sm max-w-md mb-6 leading-relaxed">
             Your browser requires manual interaction before audio playback and live room synchronization can proceed.
           </p>
           <button
             onClick={handleUnmuteAndSync}
-            className="px-6 py-3 bg-gradient-to-r from-brand-primary to-brand-accent hover:opacity-95 text-white font-bold rounded-xl shadow-xl shadow-brand-primary/40 transition transform hover:scale-105 active:scale-95 flex items-center gap-2 text-sm"
+            className="min-h-[48px] px-6 py-3 bg-gradient-to-r from-brand-primary to-brand-accent hover:opacity-95 text-white font-bold rounded-xl shadow-xl shadow-brand-primary/40 transition transform hover:scale-105 active:scale-95 flex items-center gap-2 text-sm"
           >
             <Sparkles className="w-5 h-5 text-amber-300" />
             <span>Click to Unmute &amp; Sync</span>
@@ -324,15 +475,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       {/* Top Overlay: Media Title & Sync Status Pill */}
       <div
-        className={`absolute top-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-b from-black/90 via-black/40 to-transparent flex items-center justify-between transition-opacity duration-300 z-30 ${
-          showControls ? 'opacity-100' : 'opacity-0'
+        className={`absolute top-0 left-0 right-0 p-3 sm:p-5 bg-gradient-to-b from-black/90 via-black/40 to-transparent flex items-center justify-between transition-opacity duration-300 z-30 ${
+          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="bg-brand-primary/25 border border-brand-primary/40 px-2.5 py-1 rounded-lg text-[10px] font-bold text-brand-primary uppercase tracking-widest flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="bg-brand-primary/25 border border-brand-primary/40 px-2 py-0.5 rounded-lg text-[10px] font-bold text-brand-primary uppercase tracking-widest flex-shrink-0">
             {playback.mediaType}
           </div>
-          <h2 className="text-white font-bold text-sm sm:text-base drop-shadow-md truncate max-w-xs sm:max-w-md">
+          <h2 className="text-white font-bold text-xs sm:text-base drop-shadow-md truncate max-w-[180px] sm:max-w-md">
             {playback.mediaTitle || 'Playing Video'}
           </h2>
         </div>
@@ -340,7 +491,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         {/* Sync Status Badge */}
         <div className="flex items-center gap-2">
           <div
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md border shadow-sm ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-semibold backdrop-blur-md border shadow-sm ${
               syncStatus === 'synced'
                 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35'
                 : syncStatus === 'correcting'
@@ -351,13 +502,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           >
             <Activity className="w-3.5 h-3.5" />
             <span className="capitalize">{syncStatus}</span>
-            <span className="text-[10px] text-slate-400 opacity-90 font-mono">
+            <span className="text-[10px] text-slate-400 opacity-90 font-mono hidden sm:inline">
               ({Math.abs(currentDriftMs)}ms)
             </span>
           </div>
 
           {!canControl && (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-slate-800/80 text-slate-400 border border-slate-700">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] sm:text-xs bg-slate-800/80 text-slate-400 border border-slate-700">
               <Lock className="w-3 h-3 text-amber-400" />
               <span className="hidden sm:inline">Host Only</span>
             </div>
@@ -374,15 +525,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       {/* Bottom Control Bar */}
       <div
-        className={`absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/95 via-black/70 to-transparent transition-opacity duration-300 z-30 ${
-          showControls ? 'opacity-100' : 'opacity-0'
+        className={`absolute bottom-0 left-0 right-0 p-3 sm:p-5 bg-gradient-to-t from-black/95 via-black/70 to-transparent transition-opacity duration-300 z-30 ${
+          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        {/* Scrubber Container with Hover Tooltip */}
+        {/* Scrubber Container with Touch-friendly Hit Area */}
         <div
           onMouseMove={handleScrubberMouseMove}
           onMouseLeave={() => setHoveredTime(null)}
-          className="relative w-full mb-3 group/progress cursor-pointer py-1.5"
+          className="relative w-full mb-2 sm:mb-3 group/progress cursor-pointer py-2.5 sm:py-2"
         >
           {/* Hover Time Tooltip */}
           {hoveredTime !== null && (
@@ -406,7 +557,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                   if (canControl) handleSeek(marker.timestampSeconds);
                 }}
                 title={`Marker: ${marker.title} (${formatTime(marker.timestampSeconds)})`}
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-amber-400 rounded-full shadow-md border-2 border-cinematic-950 cursor-pointer hover:scale-150 transition-transform z-10"
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-amber-400 rounded-full shadow-md border-2 border-cinematic-950 cursor-pointer hover:scale-150 transition-transform z-10"
               />
             );
           })}
@@ -419,20 +570,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             value={currentTime}
             disabled={!canControl}
             onChange={(e) => handleSeek(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-brand-primary hover:h-2.5 transition-all"
+            className="w-full h-2 sm:h-1.5 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-brand-primary hover:h-2.5 transition-all"
             aria-label="Video scrubber"
           />
         </div>
 
-        {/* Buttons Row */}
+        {/* Buttons Row with 44px Min Touch Targets */}
         <div className="flex items-center justify-between text-white">
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={togglePlay}
               disabled={!canControl}
-              className={`p-2 rounded-xl transition ${
+              className={`min-h-[44px] min-w-[44px] p-2.5 rounded-xl transition flex items-center justify-center ${
                 canControl
-                  ? 'hover:bg-white/10 active:scale-95 focus-visible:ring-1'
+                  ? 'hover:bg-white/10 active:scale-95 focus-visible:ring-1 focus-visible:ring-brand-primary'
                   : 'opacity-40 cursor-not-allowed'
               }`}
               title={canControl ? (playback.status === 'playing' ? 'Pause (Space)' : 'Play (Space)') : 'Playback locked to host'}
@@ -448,7 +599,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <button
               onClick={() => handleSkip(-10)}
               disabled={!canControl}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition disabled:opacity-40"
+              className="min-h-[44px] min-w-[44px] p-2 hover:bg-white/10 rounded-xl transition disabled:opacity-40 flex items-center justify-center"
               title="Skip back 10s (Left Arrow)"
               aria-label="Skip back 10 seconds"
             >
@@ -458,7 +609,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <button
               onClick={() => handleSkip(10)}
               disabled={!canControl}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition disabled:opacity-40"
+              className="min-h-[44px] min-w-[44px] p-2 hover:bg-white/10 rounded-xl transition disabled:opacity-40 flex items-center justify-center"
               title="Skip forward 10s (Right Arrow)"
               aria-label="Skip forward 10 seconds"
             >
@@ -466,10 +617,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </button>
 
             {/* Volume Control */}
-            <div className="flex items-center gap-1.5 group/vol ml-1">
+            <div className="flex items-center gap-1 group/vol ml-0.5">
               <button
                 onClick={toggleMute}
-                className="p-1.5 hover:bg-white/10 rounded-lg transition"
+                className="min-h-[44px] min-w-[44px] p-2 hover:bg-white/10 rounded-xl transition flex items-center justify-center"
                 title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
                 aria-label={isMuted ? 'Unmute' : 'Mute'}
               >
@@ -488,22 +639,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 step="0.05"
                 value={isMuted ? 0 : volume}
                 onChange={handleVolumeChange}
-                className="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-primary opacity-80 group-hover/vol:opacity-100 transition"
+                className="w-14 sm:w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-primary opacity-80 group-hover/vol:opacity-100 transition hidden sm:inline-block"
                 aria-label="Volume slider"
               />
             </div>
 
             {/* Time Stamp */}
-            <span className="text-xs text-slate-300 font-mono ml-2 hidden sm:inline">
+            <span className="text-[11px] sm:text-xs text-slate-300 font-mono ml-1 sm:ml-2">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Add Moment Marker */}
             <button
               onClick={onOpenMarkerModal}
-              className="px-2.5 py-1.5 hover:bg-white/10 rounded-xl text-slate-300 hover:text-amber-400 transition flex items-center gap-1.5 text-xs font-medium"
+              className="min-h-[44px] px-2.5 py-1.5 hover:bg-white/10 rounded-xl text-slate-300 hover:text-amber-400 transition flex items-center gap-1.5 text-xs font-medium"
               title="Bookmark this scene"
             >
               <Bookmark className="w-4 h-4" />
@@ -513,7 +664,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             {/* Fullscreen Toggle */}
             <button
               onClick={toggleFullscreen}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition text-slate-300 hover:text-white"
+              className="min-h-[44px] min-w-[44px] p-2 hover:bg-white/10 rounded-xl transition text-slate-300 hover:text-white flex items-center justify-center"
               title="Fullscreen (F)"
               aria-label="Toggle fullscreen"
             >
