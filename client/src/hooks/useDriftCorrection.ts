@@ -60,14 +60,12 @@ export function useDriftCorrection({
         return;
       }
 
-      // If server playback is paused, match local paused state
+      // If server playback is paused, record drift; do not call vid.pause() here to avoid race conditions with user play gestures
       if (playback.status === 'paused') {
-        if (!vid.paused) {
-          vid.pause();
-        }
         const drift = (vid.currentTime - playback.positionSeconds) * 1000;
         setCurrentDriftMs(Math.round(drift));
-        if (Math.abs(drift) > 400) {
+        // Only reconcile position if video is already paused and drift is substantial (> 500ms)
+        if (vid.paused && Math.abs(drift) > 500) {
           vid.currentTime = playback.positionSeconds;
         }
         setSyncStatus('synced');

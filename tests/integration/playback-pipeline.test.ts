@@ -188,4 +188,37 @@ describe('End-to-End Playback Pipeline & Regression Verification', () => {
     expect(secondCommand.success).toBe(true);
     expect(secondCommand.playback?.revision).toBe(3);
   });
+
+  it('10. Rapid play/pause sequence maintains strict revision integrity and expected state', () => {
+    // 1. Play
+    const play1 = roomManager.handlePlaybackCommand(roomCode, hostId, {
+      action: 'play',
+      positionSeconds: 0,
+      expectedRevision: 1,
+    });
+    expect(play1.success).toBe(true);
+    expect(play1.playback?.status).toBe('playing');
+    expect(play1.playback?.revision).toBe(2);
+
+    // 2. Immediate pause (simulating rapid user click or race condition)
+    const pause1 = roomManager.handlePlaybackCommand(roomCode, hostId, {
+      action: 'pause',
+      positionSeconds: 0.1,
+      expectedRevision: 2,
+    });
+    expect(pause1.success).toBe(true);
+    expect(pause1.playback?.status).toBe('paused');
+    expect(pause1.playback?.revision).toBe(3);
+
+    // 3. Immediate play again
+    const play2 = roomManager.handlePlaybackCommand(roomCode, hostId, {
+      action: 'play',
+      positionSeconds: 0.1,
+      expectedRevision: 3,
+    });
+    expect(play2.success).toBe(true);
+    expect(play2.playback?.status).toBe('playing');
+    expect(play2.playback?.revision).toBe(4);
+  });
 });
+

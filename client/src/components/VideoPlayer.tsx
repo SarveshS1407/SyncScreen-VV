@@ -61,6 +61,77 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [centerAnimation, setCenterAnimation] = useState<'play' | 'pause' | null>(null);
 
   const controlsTimeoutRef = useRef<number | null>(null);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
+  const intendedActionRef = useRef<'play' | 'pause' | null>(null);
+  const localActionTimestampRef = useRef<number>(0);
+
+  // Playback Coordinator: safePlay awaits pending promises and safely handles AbortErrors
+  const safePlay = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !playback.mediaUrl) return;
+
+    intendedActionRef.current = 'play';
+
+    // Await any active play promise before launching a new one
+    if (playPromiseRef.current) {
+      try {
+        await playPromiseRef.current;
+      } catch {
+        // Ignore settlement errors from previous invocations
+      }
+    }
+
+    if (intendedActionRef.current !== 'play') return;
+
+    if (!video.paused) {
+      setIsActuallyPlaying(true);
+      return;
+    }
+
+    try {
+      const p = video.play();
+      if (p !== undefined) {
+        playPromiseRef.current = p;
+        await p;
+        playPromiseRef.current = null;
+        setMediaError(null);
+        setAutoplayBlocked(false);
+        setIsActuallyPlaying(true);
+      }
+    } catch (err: any) {
+      playPromiseRef.current = null;
+      if (err?.name === 'NotAllowedError') {
+        setAutoplayBlocked(true);
+      } else if (err?.name === 'AbortError') {
+        // Benign: play() request was interrupted by pause, seek, or load
+        // Standard HTML5 media behavior - do not treat as fatal error
+      } else {
+        setMediaError(`Play rejected: ${err?.message || 'Stream blocked or unsupported'}`);
+      }
+    }
+  }, [playback.mediaUrl]);
+
+  // Playback Coordinator: safePause coordinates with pending play promises to prevent interruption errors
+  const safePause = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    intendedActionRef.current = 'pause';
+
+    // Wait for in-flight play promise to settle before pausing
+    if (playPromiseRef.current) {
+      try {
+        await playPromiseRef.current;
+      } catch {
+        // Ignore play rejection
+      }
+    }
+
+    if (intendedActionRef.current === 'pause') {
+      video.pause();
+      setIsActuallyPlaying(false);
+    }
+  }, []);
 
   // Drift Correction Engine Hook
   const { syncStatus, currentDriftMs } = useDriftCorrection({
@@ -76,30 +147,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const video = videoRef.current;
     if (!video || !playback.mediaUrl) return;
 
+    // Guard: ignore stale server props if user just triggered a local command within 700ms
+    if (Date.now() - localActionTimestampRef.current < 700) {
+      return;
+    }
+
     if (playback.status === 'playing') {
-      if (video.paused) {
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              setMediaError(null);
-              setAutoplayBlocked(false);
-            })
-            .catch((err) => {
-              if (err.name === 'NotAllowedError') {
-                setAutoplayBlocked(true);
-              } else {
-                setMediaError(`Playback error: ${err.message || 'Stream blocked or unsupported'}`);
-              }
-            });
-        }
+      if (video.paused || intendedActionRef.current !== 'play') {
+        safePlay();
       }
     } else if (playback.status === 'paused') {
-      if (!video.paused) {
-        video.pause();
+      if (!video.paused || intendedActionRef.current !== 'pause') {
+        safePause();
       }
     }
-  }, [playback.status, playback.revision, playback.mediaUrl]);
+  }, [playback.status, playback.revision, playback.mediaUrl, safePlay, safePause]);
 
   // Handle media URL change
   useEffect(() => {
@@ -111,11 +173,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     if (playback.mediaUrl) {
       if (video.src !== playback.mediaUrl) {
+        intendedActionRef.current = null;
         video.src = playback.mediaUrl;
         video.currentTime = playback.positionSeconds || 0;
         video.load();
       }
     } else {
+      intendedActionRef.current = null;
       video.removeAttribute('src');
       video.load();
     }
@@ -125,6 +189,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
     const video = e.currentTarget;
     const err = video.error;
+    if (err && err.code === 1) {
+      // MEDIA_ERR_ABORTED - benign, fetch aborted by user or script
+      return;
+    }
     let message = 'Unable to play video source. Please check media availability or network connection.';
     if (err) {
       switch (err.code) {
@@ -166,35 +234,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const togglePlay = useCallback(() => {
     if (!canControl) return;
     const video = videoRef.current;
-    const nextAction = playback.status === 'playing' ? 'pause' : 'play';
+    const isPlaying = playback.status === 'playing' || (video && !video.paused);
+    const nextAction = isPlaying ? 'pause' : 'play';
     const pos = video ? video.currentTime : playback.positionSeconds;
 
+    localActionTimestampRef.current = Date.now();
     setCenterAnimation(nextAction === 'play' ? 'play' : 'pause');
     setTimeout(() => setCenterAnimation(null), 600);
 
-    // Call video.play() / video.pause() directly inside user click handler to capture transient user activation
-    if (video && playback.mediaUrl) {
-      if (nextAction === 'play') {
-        const p = video.play();
-        if (p !== undefined) {
-          p.then(() => {
-            setMediaError(null);
-            setAutoplayBlocked(false);
-          }).catch((err) => {
-            if (err.name === 'NotAllowedError') {
-              setAutoplayBlocked(true);
-            } else {
-              setMediaError(`Play rejected: ${err.message}`);
-            }
-          });
-        }
-      } else {
-        video.pause();
-      }
+    // Trigger coordinator directly within user activation context
+    if (nextAction === 'play') {
+      safePlay();
+    } else {
+      safePause();
     }
 
     onCommand(nextAction, pos);
-  }, [canControl, playback.status, playback.positionSeconds, playback.mediaUrl, onCommand]);
+  }, [canControl, playback.status, playback.positionSeconds, safePlay, safePause, onCommand]);
 
   const handleSeek = (newTime: number) => {
     if (!canControl) return;
@@ -291,10 +347,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!videoRef.current) return;
     videoRef.current.muted = false;
     setIsMuted(false);
-    videoRef.current.play().then(() => {
-      setAutoplayBlocked(false);
-      setMediaError(null);
-    }).catch(() => {});
+    safePlay();
   };
 
   // Auto-hide controls
@@ -402,7 +455,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 if (videoRef.current && playback.mediaUrl) {
                   videoRef.current.load();
                   if (playback.status === 'playing') {
-                    videoRef.current.play().catch(() => {});
+                    safePlay();
                   }
                 }
               }}
