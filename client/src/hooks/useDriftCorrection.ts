@@ -8,6 +8,7 @@ interface UseDriftCorrectionProps {
   isBuffering: boolean;
   isHost: boolean;
   roomCode: string;
+  participantId?: string;
   onHardSeek?: (targetPos: number) => void;
 }
 
@@ -15,7 +16,9 @@ export function useDriftCorrection({
   playback,
   videoRef,
   isBuffering,
+  isHost,
   roomCode,
+  participantId,
   onHardSeek,
 }: UseDriftCorrectionProps) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
@@ -55,29 +58,67 @@ export function useDriftCorrection({
     // Check reconciliation every 1000ms
     const interval = window.setInterval(() => {
       const vid = videoRef.current;
-      if (!vid || isBuffering || vid.seeking || vid.readyState < 2) {
-        if (isBuffering) setSyncStatus('buffering');
+      // Do not fight the browser while it is buffering, seeking, or has insufficient data (readyState < 3)
+      if (!vid || isBuffering || vid.seeking || vid.readyState < 3) {
+        if (isBuffering || (vid && vid.readyState < 3)) {
+          setSyncStatus('buffering');
+        }
         return;
       }
 
-      // If server playback is paused, record drift; do not call vid.pause() here to avoid race conditions with user play gestures
+      // If server playback is paused, record drift; do not call vid.pause() here to avoid race conditions with user gestures
       if (playback.status === 'paused') {
         const drift = (vid.currentTime - playback.positionSeconds) * 1000;
         setCurrentDriftMs(Math.round(drift));
-        // Only reconcile position if video is already paused and drift is substantial (> 500ms)
-        if (vid.paused && Math.abs(drift) > 500) {
+        // Only reconcile position if video is already paused, not host, and drift is substantial (> 800ms)
+        if (!isHost && vid.paused && Math.abs(drift) > 800) {
           vid.currentTime = playback.positionSeconds;
         }
         setSyncStatus('synced');
+
+        // Report heartbeat with current position
+        const socket = socketService.getSocket();
+        if (socket && socket.connected) {
+          socket.emit('report_drift', {
+            roomCode,
+            participantId,
+            driftMs: 0,
+            rttMs: socketService.getLastRtt(),
+            hadCorrection: false,
+            positionSeconds: Math.round(vid.currentTime * 10) / 10,
+          });
+        }
         return;
       }
 
-      // If server playback is playing, check drift
+      // Host is authoritative: Host never hard-seeks or adjusts rate against its own clock
+      if (isHost) {
+        setCurrentDriftMs(0);
+        setSyncStatus('synced');
+        if (isGentleAdjustingRef.current) {
+          vid.playbackRate = playback.playbackRate;
+          isGentleAdjustingRef.current = false;
+        }
+
+        const socket = socketService.getSocket();
+        if (socket && socket.connected) {
+          socket.emit('report_drift', {
+            roomCode,
+            participantId,
+            driftMs: 0,
+            rttMs: socketService.getLastRtt(),
+            hadCorrection: false,
+            positionSeconds: Math.round(vid.currentTime * 10) / 10,
+          });
+        }
+        return;
+      }
+
+      // Guest / Non-host playback drift calculation
       const expectedPos = calculateExpectedPosition();
       const currentPos = vid.currentTime;
       // Drift = local time - expected server time (in milliseconds)
-      // Positive drift: local is ahead of server
-      // Negative drift: local is behind server
+      // Positive: local is ahead of server. Negative: local is behind server.
       const driftSeconds = currentPos - expectedPos;
       const driftMs = Math.round(driftSeconds * 1000);
       const absDriftMs = Math.abs(driftMs);
@@ -88,9 +129,9 @@ export function useDriftCorrection({
       let action: 'none' | 'rate_adjust' | 'hard_seek' = 'none';
       let appliedRate = playback.playbackRate;
 
-      // Threshold evaluation:
-      // Zone 1: < 150ms -> Fully synced, nominal rate
-      if (absDriftMs <= 150) {
+      // Threshold evaluation tuned to eliminate buffering loops:
+      // Zone 1: <= 250ms -> In sync, nominal playback rate
+      if (absDriftMs <= 250) {
         if (isGentleAdjustingRef.current) {
           vid.playbackRate = playback.playbackRate;
           isGentleAdjustingRef.current = false;
@@ -98,33 +139,37 @@ export function useDriftCorrection({
         setSyncStatus('synced');
         consecutiveDriftCountRef.current = 0;
       }
-      // Zone 2: 150ms - 900ms -> Gentle rate adjustment (imperceptible audio pitch variation)
-      else if (absDriftMs <= 900) {
+      // Zone 2: 250ms - 1800ms -> Gentle rate adjustment (imperceptible pitch variation, zero buffering)
+      else if (absDriftMs <= 1800) {
         consecutiveDriftCountRef.current++;
         setSyncStatus('correcting');
         action = 'rate_adjust';
 
         if (driftMs > 0) {
           // Local is ahead: slow down slightly
-          appliedRate = Math.max(0.85, playback.playbackRate * 0.94);
+          appliedRate = Math.max(0.92, playback.playbackRate * 0.95);
         } else {
           // Local is behind: speed up slightly
-          appliedRate = Math.min(1.25, playback.playbackRate * 1.06);
+          appliedRate = Math.min(1.08, playback.playbackRate * 1.05);
         }
 
         vid.playbackRate = appliedRate;
         isGentleAdjustingRef.current = true;
         setCorrectionCount(c => c + 1);
       }
-      // Zone 3: > 900ms -> Controlled Hard Seek with anti-thrashing cooldown
+      // Zone 3: > 1800ms -> Controlled Hard Seek with strict persistence and cooldown guards
       else {
         consecutiveDriftCountRef.current++;
         setSyncStatus('correcting');
-        action = 'hard_seek';
 
-        // Only allow hard seek if at least 1500ms has elapsed since the last hard seek
-        if (now - lastHardSeekTimeRef.current > 1500) {
+        // Only allow hard seek if:
+        // 1. Drift has persisted for at least 3 consecutive cycles (3 seconds)
+        // 2. At least 4000ms has elapsed since the last hard seek
+        // 3. The video is not currently paused or trying to buffer
+        if (consecutiveDriftCountRef.current >= 3 && now - lastHardSeekTimeRef.current > 4000) {
+          action = 'hard_seek';
           lastHardSeekTimeRef.current = now;
+          consecutiveDriftCountRef.current = 0;
           vid.currentTime = expectedPos;
           vid.playbackRate = playback.playbackRate;
           isGentleAdjustingRef.current = false;
@@ -146,20 +191,22 @@ export function useDriftCorrection({
 
       setRecentDiagnostics(prev => [diagnostic, ...prev.slice(0, 19)]);
 
-      // Report to server for room health tracking
+      // Report to server for room health tracking and timeline positions
       const socket = socketService.getSocket();
       if (socket && socket.connected) {
         socket.emit('report_drift', {
           roomCode,
+          participantId,
           driftMs,
           rttMs: diagnostic.rttMs,
           hadCorrection: action !== 'none',
+          positionSeconds: Math.round(currentPos * 10) / 10,
         });
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [playback, calculateExpectedPosition, isBuffering, roomCode, onHardSeek]);
+  }, [playback, calculateExpectedPosition, isBuffering, isHost, roomCode, participantId, onHardSeek]);
 
   return {
     syncStatus,

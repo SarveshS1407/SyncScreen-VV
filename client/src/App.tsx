@@ -231,6 +231,8 @@ export function App() {
             roomCode={room.code}
             markers={room.markers}
             floatingReactions={floatingReactions}
+            participants={room.participants}
+            currentParticipantId={currentParticipant?.id}
             onCommand={(action, pos, opts) => sendPlaybackCommand(action, pos, opts)}
             onOpenMarkerModal={() => setShowMomentMarker(true)}
             onOpenDiscovery={() => setShowDiscovery(true)}

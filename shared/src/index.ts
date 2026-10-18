@@ -37,15 +37,48 @@ export interface DriftDiagnostic {
 // 2. PARTICIPANTS & PERMISSIONS
 // ==========================================
 
+export const PARTICIPANT_COLORS = [
+  '#6366F1', // Indigo (Host primary)
+  '#EC4899', // Pink
+  '#10B981', // Emerald
+  '#F59E0B', // Amber
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#14B8A6', // Teal
+  '#F43F5E', // Rose
+  '#06B6D4', // Cyan
+  '#E11D48', // Crimson
+  '#84CC16', // Lime
+  '#A855F7', // Violet
+  '#FB923C', // Orange
+  '#0EA5E9', // Sky
+  '#D946EF', // Fuchsia
+  '#22C55E', // Green
+];
+
+export function getDeterministicColor(index: number, seed?: string): string {
+  if (index >= 0 && index < PARTICIPANT_COLORS.length) {
+    return PARTICIPANT_COLORS[index];
+  }
+  const baseOffset = seed ? seed.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) : 0;
+  const hue = Math.round((baseOffset + index * 137.508) % 360);
+  const lightness = 55 + (index % 3) * 6;
+  return `hsl(${hue}, 85%, ${lightness}%)`;
+}
+
 export interface Participant {
   id: string;              // Unique persistent session ID
   socketId: string;        // Current active socket ID
   name: string;
+  userName?: string;       // Compatibility alias for name
   isHost: boolean;
   joinedAt: number;
   lastSeenAt: number;
   isOnline: boolean;
   avatarColor: string;
+  color?: string;          // Compatibility alias for avatarColor
+  playbackPosition?: number; // Current playback position on timeline (seconds)
+  lastPositionUpdate?: number; // Epoch timestamp of last position update (ms)
 }
 
 export interface RoomPermissions {

@@ -18,7 +18,7 @@ const SAMPLE_PRESETS: { title: string; url: string; type: MediaType }[] = [
   { title: 'Big Buck Bunny (Full Movie MP4)', url: 'https://media.w3.org/2010/05/bunny/movie.mp4', type: 'mp4' },
   { title: 'Disneynature Oceans (HD MP4)', url: 'https://vjs.zencdn.net/v/oceans.mp4', type: 'mp4' },
   { title: 'Nature Blooming (4K MP4)', url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', type: 'mp4' },
-  { title: 'Tears of Steel (4K WebM)', url: 'https://upload.wikimedia.org/wikipedia/commons/1/10/Tears_of_Steel_in_4k_-_Official_Blender_Foundation_release.webm', type: 'webm' },
+  { title: 'Tears of Steel (HD WebM)', url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/1/10/Tears_of_Steel_in_4k_-_Official_Blender_Foundation_release.webm/Tears_of_Steel_in_4k_-_Official_Blender_Foundation_release.webm.720p.vp9.webm', type: 'webm' },
 ];
 
 export const MovieDiscoveryModal: React.FC<MovieDiscoveryModalProps> = ({

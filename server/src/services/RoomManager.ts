@@ -15,7 +15,9 @@ import {
   PlaybackCommandSchema,
   CreatePollSchema,
   AddQueueItemSchema,
-  MediaType
+  MediaType,
+  PARTICIPANT_COLORS,
+  getDeterministicColor
 } from '@watch-party/shared';
 import { SAMPLE_MOVIES } from '../data/movies.js';
 
@@ -30,13 +32,23 @@ function generateRoomCode(): string {
   return `${adj}-${noun}-${num}`;
 }
 
-const AVATAR_COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316',
-  '#eab308', '#10b981', '#06b6d4', '#3b82f6', '#14b8a6'
-];
+/**
+ * Assigns a stable, visually distinct, non-colliding color to a participant.
+ * Prioritizes unused palette colors, handles arbitrary participant overflow deterministically,
+ * and preserves existing assignments across renders and reorders.
+ */
+export function assignParticipantColor(existingParticipants: Participant[], participantId: string): string {
+  const usedColors = new Set(existingParticipants.map(p => p.avatarColor.toLowerCase()));
 
-function getRandomColor(): string {
-  return AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+  // 1. Assign first available distinct color from palette
+  for (const color of PARTICIPANT_COLORS) {
+    if (!usedColors.has(color.toLowerCase())) {
+      return color;
+    }
+  }
+
+  // 2. Fallback to deterministic golden-ratio HSL generation for high participant counts
+  return getDeterministicColor(existingParticipants.length, participantId);
 }
 
 export class RoomManager {
@@ -75,11 +87,15 @@ export class RoomManager {
       id: participantId,
       socketId,
       name: params.userName.trim(),
+      userName: params.userName.trim(),
       isHost: true,
       joinedAt: Date.now(),
       lastSeenAt: Date.now(),
       isOnline: true,
-      avatarColor: getRandomColor(),
+      avatarColor: PARTICIPANT_COLORS[0],
+      color: PARTICIPANT_COLORS[0],
+      playbackPosition: 0,
+      lastPositionUpdate: Date.now(),
     };
 
     if (socketId) {
@@ -227,19 +243,24 @@ export class RoomManager {
     let participant: Participant;
     let isReconnect = false;
 
-    // Check if participant already exists in room (reconnection or existing session)
-    const existingIndex = room.participants.findIndex(
-      (p) => (params.participantId && p.id === params.participantId) || p.name.toLowerCase() === params.userName.trim().toLowerCase()
-    );
+    // Check if participant already exists in room (reconnection with stable participantId)
+    // IMPORTANT: Match strictly by participantId so duplicate display names receive separate identities and colors
+    const existingIndex = params.participantId
+      ? room.participants.findIndex((p) => p.id === params.participantId)
+      : -1;
 
     if (existingIndex !== -1) {
       // Reconnect
       isReconnect = true;
+      const existing = room.participants[existingIndex];
+      const resolvedColor = existing.avatarColor || existing.color || assignParticipantColor(room.participants, existing.id);
       participant = {
-        ...room.participants[existingIndex],
+        ...existing,
         socketId: params.socketId,
         isOnline: true,
         lastSeenAt: Date.now(),
+        avatarColor: resolvedColor,
+        color: resolvedColor,
       };
       room.participants[existingIndex] = participant;
 
@@ -251,7 +272,7 @@ export class RoomManager {
         id: `msg_${Date.now()}`,
         senderId: 'system',
         senderName: 'System',
-        avatarColor: '#10b981',
+        avatarColor: participant.avatarColor,
         text: `${participant.name} reconnected.`,
         timestamp: Date.now(),
         isSystem: true,
@@ -259,15 +280,20 @@ export class RoomManager {
     } else {
       // New participant
       const participantId = params.participantId || `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const assignedColor = assignParticipantColor(room.participants, participantId);
       participant = {
         id: participantId,
         socketId: params.socketId,
         name: params.userName.trim(),
+        userName: params.userName.trim(),
         isHost: room.participants.length === 0, // Fallback if somehow no host
         joinedAt: Date.now(),
         lastSeenAt: Date.now(),
         isOnline: true,
-        avatarColor: getRandomColor(),
+        avatarColor: assignedColor,
+        color: assignedColor,
+        playbackPosition: room.playback.positionSeconds,
+        lastPositionUpdate: Date.now(),
       };
 
       room.participants.push(participant);
@@ -292,6 +318,18 @@ export class RoomManager {
     room.pulse.recentActivityCount++;
 
     return { room, participant, isReconnect };
+  }
+
+  public updateParticipantPosition(roomCode: string, participantId: string, positionSeconds: number): boolean {
+    const room = this.rooms.get(roomCode.toUpperCase());
+    if (!room) return false;
+
+    const participant = room.participants.find(p => p.id === participantId);
+    if (!participant) return false;
+
+    participant.playbackPosition = Math.max(0, positionSeconds);
+    participant.lastPositionUpdate = Date.now();
+    return true;
   }
 
   // -------------------------------------------------------------

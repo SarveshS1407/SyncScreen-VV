@@ -15,9 +15,10 @@ import {
   Bookmark,
   AlertTriangle,
   Film,
-  RefreshCw
+  RefreshCw,
+  Users
 } from 'lucide-react';
-import { PlaybackState, ReactionEvent, MomentMarker, SyncStatus } from '@watch-party/shared';
+import { PlaybackState, ReactionEvent, MomentMarker, SyncStatus, Participant } from '@watch-party/shared';
 import { useDriftCorrection } from '../hooks/useDriftCorrection.js';
 
 interface VideoPlayerProps {
@@ -27,6 +28,8 @@ interface VideoPlayerProps {
   roomCode: string;
   markers: MomentMarker[];
   floatingReactions: ReactionEvent[];
+  participants?: Participant[];
+  currentParticipantId?: string;
   onCommand: (action: 'play' | 'pause' | 'seek' | 'rate_change', pos: number, opts?: { playbackRate?: number }) => void;
   onOpenMarkerModal: () => void;
   onOpenDiscovery?: () => void;
@@ -39,6 +42,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   roomCode,
   markers,
   floatingReactions,
+  participants = [],
+  currentParticipantId,
   onCommand,
   onOpenMarkerModal,
   onOpenDiscovery,
@@ -140,6 +145,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     isBuffering,
     isHost,
     roomCode,
+    participantId: currentParticipantId,
   });
 
   // Track playback status updates from server
@@ -393,10 +399,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       <video
         ref={videoRef}
         playsInline
-        crossOrigin="anonymous"
+        preload="auto"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onWaiting={() => setIsBuffering(true)}
+        onSeeking={() => setIsBuffering(true)}
+        onSeeked={() => setIsBuffering(false)}
+        onStalled={() => setIsBuffering(true)}
         onCanPlay={() => {
           setIsBuffering(false);
           setMediaError(null);
@@ -615,6 +624,54 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             );
           })}
 
+          {/* Participant Timeline Markers */}
+          {participants.map((p) => {
+            const isSelf = p.id === currentParticipantId;
+            const pos = isSelf ? currentTime : (p.playbackPosition ?? 0);
+            const pct = duration > 0 ? Math.max(0.5, Math.min((pos / duration) * 100, 99.5)) : 0;
+            const pName = p.name || p.userName || 'Watcher';
+            const pColor = p.avatarColor || p.color || '#6366F1';
+
+            return (
+              <div
+                key={`timeline-participant-${p.id}`}
+                style={{ left: `${pct}%` }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (canControl && !isSelf) handleSeek(pos);
+                }}
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group/pin z-20 cursor-pointer"
+                aria-label={`${pName}: ${formatTime(pos)}`}
+              >
+                {/* Pin Tooltip */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded-md bg-cinematic-950/95 border border-slate-700/80 text-[11px] font-medium text-slate-100 shadow-xl opacity-0 group-hover/pin:opacity-100 pointer-events-none transition-opacity duration-150 whitespace-nowrap flex items-center gap-1.5 z-30">
+                  <span
+                    className="w-2 h-2 rounded-full ring-1 ring-white/50 shrink-0"
+                    style={{ backgroundColor: pColor }}
+                  />
+                  <span>{pName}</span>
+                  {p.isHost && <span className="text-[10px] text-amber-400 font-bold">👑</span>}
+                  {isSelf && <span className="text-[10px] text-brand-primary font-bold">(You)</span>}
+                  <span className="font-mono text-[10px] text-slate-400 ml-0.5">
+                    {formatTime(pos)}
+                  </span>
+                </div>
+
+                {/* Marker Pin Bead */}
+                <div
+                  className={`w-3.5 h-3.5 rounded-full border-2 border-cinematic-950 shadow-md transition-transform group-hover/pin:scale-150 flex items-center justify-center ${
+                    isSelf ? 'ring-2 ring-white/80' : 'ring-1 ring-black/40'
+                  }`}
+                  style={{ backgroundColor: pColor }}
+                >
+                  <span className="text-[7px] font-black text-white uppercase select-none leading-none">
+                    {pName.slice(0, 1)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+
           <input
             type="range"
             min="0"
@@ -725,6 +782,55 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Participant Legend Bar */}
+        {participants && participants.length > 0 && (
+          <div className="flex items-center gap-2 mt-2 sm:mt-2.5 pt-2 border-t border-white/10 text-xs overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <Users className="w-3 h-3 text-slate-400" /> Watchers:
+            </span>
+            {participants.map((p) => {
+              const isSelf = p.id === currentParticipantId;
+              const pTime = isSelf ? currentTime : (p.playbackPosition ?? 0);
+              const pName = p.name || p.userName || 'Watcher';
+              const pColor = p.avatarColor || p.color || '#6366F1';
+
+              return (
+                <div
+                  key={`legend-participant-${p.id}`}
+                  onClick={() => {
+                    if (canControl && !isSelf && typeof p.playbackPosition === 'number') {
+                      handleSeek(p.playbackPosition);
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 border transition-all ${
+                    isSelf
+                      ? 'bg-brand-primary/20 border-brand-primary/40 text-white font-semibold'
+                      : canControl
+                      ? 'bg-cinematic-900/80 border-slate-700/60 text-slate-300 hover:border-slate-500 cursor-pointer active:scale-95'
+                      : 'bg-cinematic-900/80 border-slate-700/60 text-slate-300'
+                  }`}
+                  title={
+                    isSelf
+                      ? `You are at ${formatTime(pTime)}`
+                      : canControl
+                      ? `Click to sync to ${pName} (${formatTime(pTime)})`
+                      : `${pName} (${formatTime(pTime)})`
+                  }
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full ring-1 ring-black/40 shrink-0"
+                    style={{ backgroundColor: pColor }}
+                  />
+                  <span className="truncate max-w-[85px] sm:max-w-[120px]">{pName}</span>
+                  {p.isHost && <span className="text-[10px] text-amber-400 font-bold" title="Host">👑</span>}
+                  {isSelf && <span className="text-[10px] text-brand-primary font-bold">(You)</span>}
+                  <span className="text-[10px] font-mono text-slate-400 ml-0.5">{formatTime(pTime)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

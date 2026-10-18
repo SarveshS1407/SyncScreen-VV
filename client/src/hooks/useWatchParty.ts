@@ -137,6 +137,18 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
       setRoom(prev => prev ? { ...prev, pulse } : null);
     };
 
+    const onParticipantPositionUpdated = (data: { participantId: string; positionSeconds: number; updatedAt: number }) => {
+      setRoom(prev => {
+        if (!prev) return null;
+        const updated = prev.participants.map(p =>
+          p.id === data.participantId
+            ? { ...p, playbackPosition: data.positionSeconds, lastPositionUpdate: data.updatedAt }
+            : p
+        );
+        return { ...prev, participants: updated };
+      });
+    };
+
     const onChatError = (data: { message: string }) => {
       setChatError(data.message);
       setTimeout(() => setChatError(null), 3500);
@@ -161,6 +173,7 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
     socket.on('host_changed', onHostChanged);
     socket.on('permissions_updated', onPermissionsUpdated);
     socket.on('pulse_updated', onPulseUpdated);
+    socket.on('participant_position_updated', onParticipantPositionUpdated);
 
     if (socket.connected) {
       onConnect();
@@ -186,6 +199,7 @@ export function useWatchParty(roomCode: string, userName: string, initialPartici
       socket.off('host_changed', onHostChanged);
       socket.off('permissions_updated', onPermissionsUpdated);
       socket.off('pulse_updated', onPulseUpdated);
+      socket.off('participant_position_updated', onParticipantPositionUpdated);
     };
   }, [roomCode, userName]);
 

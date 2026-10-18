@@ -59,7 +59,7 @@ export const SAMPLE_MOVIES: MovieItem[] = [
     backdropUrl: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=1600&q=80',
     durationSeconds: 734,
     rating: 7.9,
-    videoUrl: 'https://upload.wikimedia.org/wikipedia/commons/1/10/Tears_of_Steel_in_4k_-_Official_Blender_Foundation_release.webm',
+    videoUrl: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/1/10/Tears_of_Steel_in_4k_-_Official_Blender_Foundation_release.webm/Tears_of_Steel_in_4k_-_Official_Blender_Foundation_release.webm.720p.vp9.webm',
     videoType: 'webm',
     isPlayable: true,
     trailerUrl: 'https://www.youtube.com/watch?v=R6MlUcmOul8',

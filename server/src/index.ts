@@ -248,14 +248,37 @@ io.on('connection', (socket: Socket) => {
     });
   });
 
-  // 4. Report Drift Diagnostics (Continuous monitoring)
-  socket.on('report_drift', (data: { roomCode: string; driftMs: number; rttMs: number; hadCorrection: boolean }) => {
+  // 4. Report Drift Diagnostics & Participant Timeline Positions (Continuous monitoring)
+  socket.on('report_drift', (data: { roomCode: string; participantId?: string; driftMs: number; rttMs: number; hadCorrection: boolean; positionSeconds?: number }) => {
     if (data.roomCode && typeof data.driftMs === 'number') {
       roomManager.recordDiagnostic(data.roomCode, data.driftMs, data.rttMs || 0, data.hadCorrection || false);
+      if (data.participantId && typeof data.positionSeconds === 'number') {
+        const updated = roomManager.updateParticipantPosition(data.roomCode, data.participantId, data.positionSeconds);
+        if (updated) {
+          socket.to(data.roomCode.toUpperCase()).emit('participant_position_updated', {
+            participantId: data.participantId,
+            positionSeconds: data.positionSeconds,
+            updatedAt: Date.now(),
+          });
+        }
+      }
       const room = roomManager.getRoom(data.roomCode);
       if (room) {
         io.in(data.roomCode.toUpperCase()).emit('pulse_updated', room.pulse);
       }
+    }
+  });
+
+  // Dedicated throttled participant timeline position reporting
+  socket.on('report_position', (data: { roomCode: string; participantId: string; positionSeconds: number }) => {
+    if (!data.roomCode || !data.participantId || typeof data.positionSeconds !== 'number') return;
+    const updated = roomManager.updateParticipantPosition(data.roomCode, data.participantId, data.positionSeconds);
+    if (updated) {
+      socket.to(data.roomCode.toUpperCase()).emit('participant_position_updated', {
+        participantId: data.participantId,
+        positionSeconds: data.positionSeconds,
+        updatedAt: Date.now(),
+      });
     }
   });
 
