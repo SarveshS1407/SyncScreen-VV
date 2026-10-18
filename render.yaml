@@ -7,10 +7,11 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: CLIENT_URL
-        value: https://syncscreen-watch-party.onrender.com
+        value: https://syncscreen-vv.vercel.app,https://syncscreen-watch-party.onrender.com

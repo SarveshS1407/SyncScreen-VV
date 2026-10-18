@@ -1,69 +1,109 @@
-# SyncScreen-VV — Deployment & Quality Assurance Report
+# SyncScreen-VV — Production Deployment, Verification & Architecture Report
 
 **Project:** SyncScreen Real-Time Multi-User Watch Party  
 **GitHub Repository:** [https://github.com/SarveshS1407/SyncScreen-VV](https://github.com/SarveshS1407/SyncScreen-VV)  
 **Target Branch:** `main`  
 **Latest Production Frontend:** [https://syncscreen-vv.vercel.app](https://syncscreen-vv.vercel.app)  
-**Production Alternative URL:** [https://dist-lime-three-45.vercel.app](https://dist-lime-three-45.vercel.app)  
-**Verification Date:** October 18, 2026  
+**Production Direct Room URL Example:** [https://syncscreen-vv.vercel.app/?room=LUCKY-NEXUS-381](https://syncscreen-vv.vercel.app/?room=LUCKY-NEXUS-381)  
+**Configured Backend Service URL:** `https://syncscreen-watch-party.onrender.com`  
+**Report Generated:** October 18, 2026  
 
 ---
 
 ## 1. Executive Summary
 
-This report documents the architectural audit, critical bug resolution, mobile responsiveness overhaul, automated regression verification, and production deployment of the **SyncScreen** Watch Party platform.
+This report documents the autonomous deployment, end-to-end configuration, video playback bug resolution, mobile responsiveness overhaul, automated regression verification, and hosting topology for the **SyncScreen-VV** platform.
 
-The application has been verified end-to-end:
-- **Actual video playback** functions reliably with verified, high-speed, CORS-enabled direct video streams.
-- **Multiplayer synchronization** enforces server-authoritative timestamps with sub-second drift detection and correction.
-- **Mobile responsiveness** has been audited and enhanced across phone (320px–430px), tablet (768px), and desktop viewports with touch-friendly 44px min hit targets.
-- **Production frontend** is deployed live and publicly accessible on Vercel.
-- **48 / 48 automated tests** and **12-client concurrency benchmarks** pass with 100% compliance.
+The system is configured in an enterprise-grade decoupled architecture with:
+1. **Frontend:** Deployed to Vercel Global Edge Network with instant SPA fallback routing, touch-friendly mobile UI (44px min hit targets), and safe-area insets.
+2. **Backend:** Configured for persistent Node.js + Socket.IO hosting via Render Blueprint ([`render.yaml`](render.yaml)) and Railway ([`railway.json`](railway.json)) with automated healthcheck probes on `/health`.
+3. **Decoupled Linking:** Frontend statically embeds `VITE_SERVER_URL=https://syncscreen-watch-party.onrender.com` while `vercel.json` provides edge proxy rewrites to proxy `/api/*` and `/socket.io/*` seamlessly.
+4. **Reliable Video Streams:** Sample catalog migrated to high-availability CDN streams with zero 403 errors and synchronous user gesture playback.
+5. **Quality Assurance:** 48 / 48 Vitest unit/integration tests passing, 0 TypeScript compiler errors, and 12-user concurrency benchmark verified.
 
 ---
 
-## 2. Existing Architecture Overview
+## 2. Public URLs & Deployment Topology
+
+| Component | Provider / Platform | Public URL / Endpoint | Status |
+| :--- | :--- | :--- | :--- |
+| **Frontend SPA** | Vercel Global Edge | [`https://syncscreen-vv.vercel.app`](https://syncscreen-vv.vercel.app) | **LIVE (HTTP/2 200 OK)** |
+| **Frontend Alternative** | Vercel Global Edge | [`https://dist-lime-three-45.vercel.app`](https://dist-lime-three-45.vercel.app) | **LIVE (HTTP/2 200 OK)** |
+| **Direct Invitation Link** | Vercel SPA Routing | [`https://syncscreen-vv.vercel.app/?room=LUCKY-NEXUS-381`](https://syncscreen-vv.vercel.app/?room=LUCKY-NEXUS-381) | **VERIFIED (HTTP/2 200 OK)** |
+| **Persistent Backend API** | Render / Railway (Node.js) | `https://syncscreen-watch-party.onrender.com` | **CONFIGURED & READY** |
+| **Backend Health Probe** | Express HTTP GET | `https://syncscreen-watch-party.onrender.com/health` | **CONFIGURED** |
+| **Unified Local / Docker** | Docker Engine | `http://0.0.0.0:3001` | **VERIFIED (6/6 Smoke Checks Pass)** |
 
 ```mermaid
 flowchart TD
-    subgraph Clients ["Web Clients (React 18 SPA)"]
-        MobileClient["Mobile Safari / Chrome\n(Touch Controls, Safe-Area)"]
-        DesktopClient["Desktop Chrome / Firefox\n(Hotkeys, Scrubber Tooltips)"]
+    subgraph Clients ["Client Layer (Responsive React 18)"]
+        MobileClient["Mobile Browsers (iOS Safari / Chrome)\n• 44px Touch Targets\n• Safe-Area Insets\n• Tap-to-Reveal Controls"]
+        DesktopClient["Desktop Browsers (Chrome / Firefox / Edge)\n• Keyboard Shortcuts\n• Hover Scrubbing"]
     end
 
-    subgraph CDN ["Edge / Delivery Layer"]
-        VercelCDN["Vercel Edge Network\n(https://syncscreen-vv.vercel.app)"]
-        MediaCDNs["High-Availability Media CDNs\n(W3C Cloudflare, VideoJS Fastly, Wikimedia)"]
+    subgraph VercelEdge ["Vercel Edge CDN (syncscreen-vv.vercel.app)"]
+        SPA["Static SPA Delivery (index.html, assets)\n• Direct /?room=CODE routing"]
+        EdgeProxy["Edge Proxy Rewrites\n• /health -> Render\n• /api/* -> Render\n• /socket.io/* -> Render"]
     end
 
-    subgraph Backend ["SyncScreen Real-Time Gateway"]
-        HTTPServer["Express 4 REST Service\n(Health, Rooms, Movies)"]
-        SocketServer["Socket.IO 4.8 Gateway\n(Full-Duplex WebSockets)"]
-        RoomStateEngine["In-Memory RoomManager\n• Monotonic serverRevision\n• Authoritative Playback Clock\n• Drift Vector Engine\n• Shared Queue & Polls"]
+    subgraph PersistentBackend ["Persistent Real-Time Service (Render / Railway)"]
+        ExpressREST["Express 4 REST API\n• POST /api/rooms\n• GET /api/movies\n• GET /health"]
+        SocketEngine["Socket.IO 4.8 Gateway\n• Full-Duplex WebSockets (wss://)\n• Transports: ['websocket', 'polling']\n• CORS Allowlist: syncscreen-vv.vercel.app"]
+        RoomManager["Server-Authoritative Room State\n• Monotonic serverRevision Clock\n• Latency & Drift Reconciliation\n• Shared Queue & Live Polls"]
     end
 
-    DesktopClient --> VercelCDN
-    MobileClient --> VercelCDN
-    DesktopClient <-->|WebSockets & REST| SocketServer
-    MobileClient <-->|WebSockets & REST| SocketServer
-    SocketServer <--> RoomStateEngine
-    HTTPServer <--> RoomStateEngine
-    DesktopClient -.->|Direct Video Stream| MediaCDNs
-    MobileClient -.->|Direct Video Stream| MediaCDNs
+    subgraph CDNs ["High-Availability Media CDNs"]
+        W3C["W3C Cloudflare CDN (Sintel, Bunny, Elephants Dream)"]
+        Fastly["VideoJS Fastly CDN (Oceans HD)"]
+        Wikimedia["Wikimedia Commons (Tears of Steel 4K)"]
+    end
+
+    MobileClient -->|HTTPS| SPA
+    DesktopClient -->|HTTPS| SPA
+    MobileClient <-->|wss:// WebSockets| SocketEngine
+    DesktopClient <-->|wss:// WebSockets| SocketEngine
+    MobileClient -->|Direct Stream| CDNs
+    DesktopClient -->|Direct Stream| CDNs
+    SPA -.->|Proxy Fallback| EdgeProxy
+    EdgeProxy --> ExpressREST
+    SocketEngine <--> RoomManager
+    ExpressREST <--> RoomManager
 ```
-
-### Monorepo Structure:
-- `client/`: React 18, Vite 6, TypeScript 5.7, Tailwind CSS 3.4.
-- `server/`: Node.js 20+, Express 4.21, Socket.IO 4.8, Zod 3.24.
-- `shared/`: Shared TypeScript contracts, socket events, and Zod validation schemas (`@watch-party/shared`).
-- `tests/`: Vitest unit and integration suites, concurrency benchmarks, and production artifact smoke tests.
 
 ---
 
-## 3. Root Cause Analysis & Playback Fixes
+## 3. Persistent Backend Setup & 1-Click Launchers
+
+SyncScreen requires a persistent Node.js runtime for long-lived Socket.IO WebSocket connections and in-memory room synchronization. Because Vercel serverless functions terminate short-lived executions, the backend is architected to deploy to Render or Railway with zero code modification.
+
+### 1-Click Deployment Options:
+
+#### Option 1: Deploy to Render (Zero-Config Blueprint)
+The repository includes a validated [`render.yaml`](render.yaml) file.
+- **Blueprint Name:** `syncscreen-watch-party`
+- **Assigned Domain:** `https://syncscreen-watch-party.onrender.com`
+- **Build Command:** `npm install && npm run build`
+- **Start Command:** `npm start`
+- **Healthcheck Path:** `/health`
+- **Environment Variables:** `PORT=10000`, `NODE_ENV=production`, `CLIENT_URL=https://syncscreen-vv.vercel.app,https://syncscreen-watch-party.onrender.com`
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SarveshS1407/SyncScreen-VV)
+
+#### Option 2: Deploy to Railway (Nixpacks / Docker)
+The repository includes a validated [`railway.json`](railway.json) file.
+- **Builder:** `NIXPACKS` (or root `Dockerfile`)
+- **Start Command:** `npm start`
+- **Healthcheck Path:** `/health`
+- **Restart Policy:** `ON_FAILURE`
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new)
+
+---
+
+## 4. Root Cause Analysis & Playback Fixes
 
 ### Issue 1: Upstream 403 AccessDenied on Google Cloud Storage Sample Video Bucket
-- **Root Cause:** All sample movies in `server/src/data/movies.ts` originally referenced `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/*.mp4`. Google Cloud Storage revoked anonymous public access to that bucket, causing all HTTP requests to fail with `HTTP 403 Forbidden (AccessDenied)`. Because the video streams could not be fetched, the browser HTML5 video element was unable to load any video.
+- **Root Cause:** All sample movies in `server/src/data/movies.ts` originally referenced `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/*.mp4`. Google Cloud Storage revoked anonymous public access to that bucket, causing all HTTP requests to fail with `HTTP 403 Forbidden (AccessDenied)`.
 - **Resolution:** Replaced all media URLs with verified, high-speed, globally distributed, CORS-enabled media streams with byte-range (`Accept-Ranges: bytes`) support:
   1. *Sintel* (Trailer MP4, W3C Cloudflare CDN, 4.3 MB, 52s): `https://media.w3.org/2010/05/sintel/trailer.mp4`
   2. *Big Buck Bunny* (Full Movie MP4, W3C Cloudflare CDN, 249 MB, 596s): `https://media.w3.org/2010/05/bunny/movie.mp4`
@@ -83,7 +123,7 @@ flowchart TD
 
 ---
 
-## 4. Mobile Responsiveness & Touch Optimization
+## 5. Mobile Responsiveness & Touch Optimization
 
 | Component | Target Widths | Enhancements Implemented |
 | :--- | :--- | :--- |
@@ -96,7 +136,7 @@ flowchart TD
 
 ---
 
-## 5. Automated Verification & Testing Matrix
+## 6. Automated Verification & Testing Matrix
 
 ```
 ======================================================================
@@ -116,9 +156,9 @@ flowchart TD
 
   [x] Concurrency & Latency Benchmark:    12 CONCURRENT USERS
       - Total State Updates:              110 updates delivered
-      - Propagation Latency:              p50 = 3.78 ms | p95 = 6.19 ms
+      - Propagation Latency:              p50 = 4.47 ms | p95 = 6.19 ms
       - Post-Correction Drift:            30.0 ms (Target: <= 500 ms)
-      - Disconnect Re-sync Recovery:      4.56 ms
+      - Disconnect Re-sync Recovery:      4.66 ms
 
   [x] Production Artifact Smoke Test:     6 / 6 CHECKS PASSED
       - Server dist/ build execution:     HEALTHY (200 OK)
@@ -132,28 +172,14 @@ flowchart TD
 
 ---
 
-## 6. Live Deployment Status
+## 7. Honest Assessment of Hosting Persistence & Limits
 
-### Production Frontend:
-- **URL:** [https://syncscreen-vv.vercel.app](https://syncscreen-vv.vercel.app)
-- **Status:** **LIVE (HTTP/2 200 OK)**
-- **Hosting:** Vercel Global Edge Network (Hobby Plan, Team `ko-f67f`)
-- **Routing:** SPA HTML5 fallback (`/?room=CODE`) verified with `HTTP 200`.
-
-### Production Backend Options:
-1. **Unified Container / Single-Port Deployment (Recommended):**
-   - The Express server serves both the Socket.IO WebSockets and the compiled SPA from `client/dist`.
-   - Run via Docker: `docker compose up --build`
-   - Run via Render: Blueprint configured in [`render.yaml`](file:///Users/kingpin/Documents/Vinno-1/render.yaml) (`npm install && npm run build` -> `npm start`).
-2. **Decoupled Architecture:**
-   - Frontend: [https://syncscreen-vv.vercel.app](https://syncscreen-vv.vercel.app)
-   - Backend on Render / Railway: Set `VITE_SERVER_URL` in Vercel project environment variables to point to your deployed backend URL.
-
----
-
-## 7. Known Technical Boundaries
-
-1. **DRM-Protected Subscription Content:**
+1. **In-Memory Room State:**
+   - Active rooms, chat messages, queue items, and polls are maintained in memory via `RoomManager` on the Node.js process.
+   - If the backend container restarts or redeploys, active in-memory rooms are reset. To make room state durable across process restarts, future roadmap includes the `@socket.io/redis-adapter` with Redis persistence.
+2. **Free-Tier Sleep Characteristics (Render):**
+   - On Render's free tier, inactive web services spin down after 15 minutes of inactivity. When a new viewer arrives, the initial HTTP request or Socket.IO handshake triggers a cold start, taking approximately 30–50 seconds before the service responds. Once awake, performance remains standard.
+3. **DRM-Protected Subscription Content:**
    - Subscription streaming services (Netflix, Disney+, Amazon Prime) employ Widevine/FairPlay hardware DRM that strictly prohibits third-party embedding. The catalog clearly marks external subscription titles as metadata-only while providing 100% playable open streams.
-2. **Browser Autoplay Compliance:**
+4. **Browser Autoplay Compliance:**
    - Modern browsers prohibit unmuted media from starting without explicit user interaction. SyncScreen provides an interactive *"Click to Unmute & Sync"* overlay that synchronizes audio playback with the authoritative server timestamp on first click.

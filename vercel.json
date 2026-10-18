@@ -5,6 +5,18 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/health",
+      "destination": "https://syncscreen-watch-party.onrender.com/health"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://syncscreen-watch-party.onrender.com/api/:path*"
+    },
+    {
+      "source": "/socket.io/:path*",
+      "destination": "https://syncscreen-watch-party.onrender.com/socket.io/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

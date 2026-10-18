@@ -316,30 +316,42 @@ The application will be live at `http://localhost:3001`.
 
 #### 2. Deploy to Render (`render.yaml`)
 A complete Infrastructure-as-Code blueprint is included in [`render.yaml`](render.yaml):
-1. Create a new **Web Service** on [Render](https://render.com/).
-2. Connect the repository `https://github.com/SarveshS1407/SyncScreen-VV`.
-3. Set **Build Command**: `npm install && npm run build`
-4. Set **Start Command**: `npm start`
-5. Set Environment Variable: `NODE_ENV=production`
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SarveshS1407/SyncScreen-VV)
+
+1. Click the **Deploy to Render** button above or import repository `https://github.com/SarveshS1407/SyncScreen-VV` into Render Blueprints.
+2. Render automatically provisions the web service `syncscreen-watch-party`.
+3. Auto-detected settings from `render.yaml`:
+   - Build Command: `npm install && npm run build`
+   - Start Command: `npm start`
+   - Healthcheck Path: `/health`
+   - Assigned URL: `https://syncscreen-watch-party.onrender.com`
+
+#### 3. Deploy to Railway (`railway.json`)
+The repository includes a pre-configured [`railway.json`](railway.json) and root [`Dockerfile`](Dockerfile):
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new)
+
+1. Connect the repository `https://github.com/SarveshS1407/SyncScreen-VV`.
+2. Railway detects `Dockerfile` or Nixpacks automatically.
+3. Healthcheck path is set to `/health`.
 
 ---
 
 ### Option B: Decoupled Deployment (Vercel Frontend + Render Backend)
 
 #### Frontend on Vercel
-1. Import `https://github.com/SarveshS1407/SyncScreen-VV` into [Vercel](https://vercel.com/new).
-2. Set **Root Directory** to `client` (or use the root `vercel.json`).
-3. Set **Build Command**: `npm run build`
-4. Set **Output Directory**: `dist`
-5. Configure Environment Variable:
-   - `VITE_SERVER_URL`: `https://your-syncscreen-backend.onrender.com`
+- **Live Production URL:** [`https://syncscreen-vv.vercel.app`](https://syncscreen-vv.vercel.app)
+- **Direct Room Invitation Routing:** [`https://syncscreen-vv.vercel.app/?room=LUCKY-NEXUS-381`](https://syncscreen-vv.vercel.app/?room=LUCKY-NEXUS-381)
+- Root configuration is handled automatically by [`vercel.json`](vercel.json) with edge rewrites proxying `/api/*`, `/socket.io/*`, and `/health`.
+- Environment Variable: `VITE_SERVER_URL=https://syncscreen-watch-party.onrender.com`
 
 #### Backend on Render / Railway
-1. Deploy the Node.js backend from the root directory.
-2. Configure Environment Variables:
-   - `PORT`: `3001`
-   - `CLIENT_URL`: `https://your-syncscreen-frontend.vercel.app`
-   - `NODE_ENV`: `production`
+- Deploy the persistent Node.js backend using the 1-click buttons above.
+- Configure Environment Variables:
+  - `PORT`: `10000` (Render) or `3001` (Railway)
+  - `CLIENT_URL`: `https://syncscreen-vv.vercel.app,https://syncscreen-watch-party.onrender.com`
+  - `NODE_ENV`: `production`
 
 ---
 
