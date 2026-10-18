@@ -4,7 +4,9 @@ import { Film, Users, Play, Compass, EyeOff, ShieldCheck, ArrowRight, Sparkles, 
 interface LandingPageProps {
   initialRoomCode?: string;
   onJoin: (roomCode: string, userName: string) => void;
-  onCreate: (userName: string, roomName?: string) => void;
+  onCreate: (userName: string, roomName?: string) => Promise<void> | void;
+  isCreating?: boolean;
+  createError?: string | null;
 }
 
 function parseRoomCodeInput(input: string): string {
@@ -33,6 +35,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   initialRoomCode = '',
   onJoin,
   onCreate,
+  isCreating = false,
+  createError = null,
 }) => {
   const [mode, setMode] = useState<'create' | 'join'>(initialRoomCode ? 'join' : 'create');
   const [userName, setUserName] = useState('');
@@ -48,7 +52,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     }
   }, [initialRoomCode]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -67,15 +71,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       onJoin(cleanedCode, userName.trim());
     } else {
       setIsLoading(true);
-      onCreate(userName.trim(), roomName.trim() || undefined);
+      try {
+        await onCreate(userName.trim(), roomName.trim() || undefined);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleQuickDemo = () => {
+  const handleQuickDemo = async () => {
     const demoNames = ['Nova', 'Orion', 'Stella', 'Phoenix', 'Lyra', 'Atlas'];
     const randomName = demoNames[Math.floor(Math.random() * demoNames.length)];
     setIsLoading(true);
-    onCreate(randomName, `${randomName}'s Cinema Lounge`);
+    try {
+      await onCreate(randomName, `${randomName}'s Cinema Lounge`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -205,10 +217,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </button>
             </div>
 
-            {error && (
-              <div className="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                <span>{error}</span>
+            {(error || createError) && (
+              <div className="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 flex-shrink-0" />
+                <span className="leading-relaxed">{error || createError}</span>
               </div>
             )}
 
@@ -273,10 +285,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || isCreating}
                 className="w-full py-3.5 bg-gradient-to-r from-brand-primary via-brand-accent to-indigo-600 hover:opacity-95 text-white font-bold rounded-xl text-sm shadow-lg shadow-brand-primary/30 transition flex items-center justify-center gap-2 group active:scale-[0.98] disabled:opacity-50 mt-2"
               >
-                <span>{isLoading ? 'Connecting...' : mode === 'create' ? 'Create Watch Room' : 'Join Watch Room'}</span>
+                <span>{(isLoading || isCreating) ? 'Connecting to Room...' : mode === 'create' ? 'Create Watch Room' : 'Join Watch Room'}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
               </button>
             </form>

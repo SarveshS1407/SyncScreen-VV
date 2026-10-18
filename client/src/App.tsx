@@ -74,30 +74,51 @@ export function App() {
     voteBlindPick,
   } = useWatchParty(roomCode, userName);
 
-  // Handle Create Room
+  const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Handle Create Room with timeout, error extraction, and double-click protection
   const handleCreateRoom = async (name: string, roomTitle?: string) => {
+    setIsCreating(true);
+    setCreateError(null);
     try {
-      const res = await fetch(apiUrl('/api/rooms'), {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const url = apiUrl('/api/rooms');
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName: name, roomName: roomTitle }),
+        signal: controller.signal,
       });
-      const data = await res.json();
+      clearTimeout(timeoutId);
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.error || 'Failed to create room');
+        setCreateError(data.error || `Server error (${res.status}). Please try again.`);
+        return;
+      }
+      if (!data.roomCode) {
+        setCreateError('Invalid response received from server.');
         return;
       }
       setUserName(name);
       setRoomCode(data.roomCode);
       try { localStorage.setItem('syncscreen_username', name); } catch {}
       window.history.pushState({}, '', `?room=${data.roomCode}`);
-    } catch (err) {
-      alert('Network error connecting to server');
+    } catch (err: any) {
+      const isTimeout = err?.name === 'AbortError';
+      const msg = isTimeout
+        ? 'Connection timed out while reaching the real-time server. Please try again.'
+        : 'Unable to connect to the SyncScreen real-time server. Please check your internet connection or try again in a moment.';
+      setCreateError(msg);
+    } finally {
+      setIsCreating(false);
     }
   };
 
   // Handle Join Room
   const handleJoinRoom = (code: string, name: string) => {
+    setCreateError(null);
     setUserName(name);
     setRoomCode(code);
     try { localStorage.setItem('syncscreen_username', name); } catch {}
@@ -111,6 +132,7 @@ export function App() {
       localStorage.removeItem(`wp_user_${roomCode}`);
       setRoomCode('');
       setUserName('');
+      setCreateError(null);
       window.history.pushState({}, '', window.location.pathname);
     }
   };
@@ -127,6 +149,7 @@ export function App() {
               onClick={() => {
                 setRoomCode('');
                 setUserName('');
+                setCreateError(null);
                 window.history.pushState({}, '', window.location.pathname);
               }}
               className="underline hover:text-rose-200 ml-2 font-semibold"
@@ -139,6 +162,8 @@ export function App() {
           initialRoomCode={roomCode}
           onJoin={handleJoinRoom}
           onCreate={handleCreateRoom}
+          isCreating={isCreating}
+          createError={createError}
         />
       </div>
     );

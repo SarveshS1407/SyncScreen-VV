@@ -6,15 +6,15 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "https://syncscreen-watch-party.onrender.com/health"
+      "destination": "https://sheets-activation-prisoners-stanford.trycloudflare.com/health"
     },
     {
       "source": "/api/:path*",
-      "destination": "https://syncscreen-watch-party.onrender.com/api/:path*"
+      "destination": "https://sheets-activation-prisoners-stanford.trycloudflare.com/api/:path*"
     },
     {
       "source": "/socket.io/:path*",
-      "destination": "https://syncscreen-watch-party.onrender.com/socket.io/:path*"
+      "destination": "https://sheets-activation-prisoners-stanford.trycloudflare.com/socket.io/:path*"
     },
     {
       "source": "/(.*)",
